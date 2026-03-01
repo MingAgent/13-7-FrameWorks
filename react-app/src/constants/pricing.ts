@@ -1,15 +1,15 @@
 // Cookie-cutter Building Sizes (from Burnett spec - 10 sizes total)
 export const BUILDING_SIZES = [
-  { id: '30x40', label: "30' × 40'", width: 30, length: 40, sqft: 1200, startingPrice: 26500 },
-  { id: '30x50', label: "30' × 50'", width: 30, length: 50, sqft: 1500, startingPrice: 31000 },
-  { id: '40x40', label: "40' × 40'", width: 40, length: 40, sqft: 1600, startingPrice: 33000 },
-  { id: '40x50', label: "40' × 50'", width: 40, length: 50, sqft: 2000, startingPrice: 39000 },
-  { id: '40x60', label: "40' × 60'", width: 40, length: 60, sqft: 2400, startingPrice: 45000 },
-  { id: '50x50', label: "50' × 50'", width: 50, length: 50, sqft: 2500, startingPrice: 47000 },
-  { id: '50x60', label: "50' × 60'", width: 50, length: 60, sqft: 3000, startingPrice: 54000 },
-  { id: '50x80', label: "50' × 80'", width: 50, length: 80, sqft: 4000, startingPrice: 68000 },
-  { id: '60x60', label: "60' × 60'", width: 60, length: 60, sqft: 3600, startingPrice: 62000 },
-  { id: '60x100', label: "60' × 100'", width: 60, length: 100, sqft: 6000, startingPrice: 95000 },
+  { id: '30x40', label: "30' × 40'", width: 30, length: 40, sqft: 1200, startingPrice: 30500 },
+  { id: '30x50', label: "30' × 50'", width: 30, length: 50, sqft: 1500, startingPrice: 36000 },
+  { id: '40x40', label: "40' × 40'", width: 40, length: 40, sqft: 1600, startingPrice: 35000 },
+  { id: '40x50', label: "40' × 50'", width: 40, length: 50, sqft: 2000, startingPrice: 41500 },
+  { id: '40x60', label: "40' × 60'", width: 40, length: 60, sqft: 2400, startingPrice: 47500 },
+  { id: '50x50', label: "50' × 50'", width: 50, length: 50, sqft: 2500, startingPrice: 50000 },
+  { id: '50x60', label: "50' × 60'", width: 50, length: 60, sqft: 3000, startingPrice: 58500 },
+  { id: '50x80', label: "50' × 80'", width: 50, length: 80, sqft: 4000, startingPrice: 76500 },
+  { id: '60x60', label: "60' × 60'", width: 60, length: 60, sqft: 3600, startingPrice: 65000 },
+  { id: '60x100', label: "60' × 100'", width: 60, length: 100, sqft: 6000, startingPrice: 102000 },
 ] as const;
 
 // Eave Heights with price modifiers
