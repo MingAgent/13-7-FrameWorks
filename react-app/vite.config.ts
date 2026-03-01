@@ -13,5 +13,5 @@ export default defineConfig({
       '@': '/src'
     }
   },
-  base: '/13-7-FrameWorks/'
+  base: '/'
 })

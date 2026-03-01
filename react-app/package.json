@@ -3,7 +3,7 @@
   "private": true,
   "version": "2.0.0",
   "description": "Metal Building Estimator for 13|7 FrameWorks - Built with React and Framer Motion",
-  "homepage": "https://mingagent.github.io/13-7-FrameWorks",
+  "homepage": "https://www.137frameworks.com",
   "type": "module",
   "scripts": {
     "dev": "vite",
