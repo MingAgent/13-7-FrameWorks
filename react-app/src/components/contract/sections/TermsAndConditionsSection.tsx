@@ -2,6 +2,7 @@ import { motion } from 'framer-motion';
 import { FileText, DollarSign, Clock } from 'lucide-react';
 import { ContractSection, TermSection } from '../ContractSection';
 import { CONTRACT_TERMS } from '../../../constants/contractTerms';
+import { DRAW_SCHEDULE } from '../../../constants/pricing';
 import { useEstimatorStore } from '../../../store/estimatorStore';
 
 interface TermsAndConditionsSectionProps {
@@ -107,22 +108,15 @@ export function TermsAndConditionsSection({
             <div className="mt-6 bg-gray-50 rounded-lg p-4">
               <h4 className="text-sm font-bold text-gray-900 uppercase tracking-wide mb-3">Your Draw Schedule</h4>
               <div className="space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-gray-500">Draw 1 (30%) - Upon Signing</span>
-                  <span className="text-gray-900 font-medium">${(pricing.grandTotal * 0.30).toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-500">Draw 2 (30%) - Material Delivery</span>
-                  <span className="text-gray-900 font-medium">${(pricing.grandTotal * 0.30).toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-500">Draw 3 (30%) - Framing Complete</span>
-                  <span className="text-gray-900 font-medium">${(pricing.grandTotal * 0.30).toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between border-t border-gray-200 pt-2">
-                  <span className="text-gray-500">Final Draw (10%) - Completion</span>
-                  <span className="text-gray-900 font-medium">${(pricing.grandTotal * 0.10).toLocaleString()}</span>
-                </div>
+                {DRAW_SCHEDULE.map((draw, idx) => (
+                  <div
+                    key={draw.label}
+                    className={`flex justify-between ${idx === DRAW_SCHEDULE.length - 1 ? 'border-t border-gray-200 pt-2' : ''}`}
+                  >
+                    <span className="text-gray-500">{draw.label} ({Math.round(draw.percent * 100)}%) - {draw.description}</span>
+                    <span className="text-gray-900 font-medium">${(pricing.grandTotal * draw.percent).toLocaleString()}</span>
+                  </div>
+                ))}
               </div>
             </div>
           </div>

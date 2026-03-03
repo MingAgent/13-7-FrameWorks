@@ -10,6 +10,7 @@ import type {
 } from '../../types/estimator';
 import { CONTRACT_TERMS, COMPANY_INFO, PAYMENT_METHODS } from '../../constants/contractTerms';
 import { drawConstructionPages } from './constructionPlan';
+import { getPlanImageDataUrls, type PlanGenerationResult } from '../planService';
 
 interface ContractPdfData {
   customer: CustomerInfo;
@@ -20,6 +21,7 @@ interface ContractPdfData {
   pricing: PricingBreakdown;
   contract: ContractConfig;
   doorPositions?: Record<string, number>;
+  planResult?: PlanGenerationResult;
 }
 
 // Helper to format date
@@ -71,7 +73,7 @@ function getColorName(hex: string): string {
 }
 
 export async function generateContractPdf(data: ContractPdfData): Promise<jsPDF> {
-  const { customer, building, accessories, colors, concrete, pricing, contract } = data;
+  const { customer, building, accessories, colors, concrete, pricing, contract, planResult } = data;
 
   // Create PDF with professional settings
   const doc = new jsPDF({
@@ -615,7 +617,12 @@ export async function generateContractPdf(data: ContractPdfData): Promise<jsPDF>
     efy += 9;
   }
 
-  // Sheet index
+  // ===== SHEET INDEX + PLAN EMBEDDING =====
+  // Check if we have professional Python-generated plans
+  const hasPythonPlans = planResult && planResult.success && planResult.passed > 0;
+  const planImages = hasPythonPlans ? getPlanImageDataUrls(planResult) : [];
+
+  // Sheet index — use Python plan names if available, otherwise JS defaults
   ey = 150;
   doc.setFontSize(11); doc.setFont('helvetica', 'bold'); doc.setTextColor(...textColor);
   doc.text('SHEET INDEX', margin + 5, ey);
@@ -623,21 +630,35 @@ export async function generateContractPdf(data: ContractPdfData): Promise<jsPDF>
   doc.line(margin + 5, ey + 3, margin + contentWidth - 5, ey + 3);
 
   doc.setFontSize(9); doc.setFont('helvetica', 'normal');
-  const sheets = [
-    ['S-1', 'Aerial / Site Plan'],
-    ['S-2', 'Front & Rear Elevations'],
-    ['S-3', 'Left & Right Elevations'],
-    ['S-4', 'Roof Plan'],
-    ['S-5', 'Foundation / Concrete Plan'],
-    ['S-6', 'Door & Window Schedule + Construction Notes'],
-  ];
-  let siy = ey + 12;
-  for (const [num, title] of sheets) {
-    doc.setFont('helvetica', 'bold'); doc.setTextColor(...primaryColor);
-    doc.text(num, margin + 10, siy);
-    doc.setFont('helvetica', 'normal'); doc.setTextColor(...grayColor);
-    doc.text(title, margin + 30, siy);
-    siy += 8;
+
+  if (hasPythonPlans && planImages.length > 0) {
+    // Professional plan sheet index
+    let siy = ey + 12;
+    for (const img of planImages) {
+      doc.setFont('helvetica', 'bold'); doc.setTextColor(...primaryColor);
+      doc.text(img.code, margin + 10, siy);
+      doc.setFont('helvetica', 'normal'); doc.setTextColor(...grayColor);
+      doc.text(img.name, margin + 30, siy);
+      siy += 8;
+    }
+  } else {
+    // Fallback JS plan sheet index
+    const sheets = [
+      ['S-1', 'Aerial / Site Plan'],
+      ['S-2', 'Front & Rear Elevations'],
+      ['S-3', 'Left & Right Elevations'],
+      ['S-4', 'Roof Plan'],
+      ['S-5', 'Foundation / Concrete Plan'],
+      ['S-6', 'Door & Window Schedule + Construction Notes'],
+    ];
+    let siy = ey + 12;
+    for (const [num, title] of sheets) {
+      doc.setFont('helvetica', 'bold'); doc.setTextColor(...primaryColor);
+      doc.text(num, margin + 10, siy);
+      doc.setFont('helvetica', 'normal'); doc.setTextColor(...grayColor);
+      doc.text(title, margin + 30, siy);
+      siy += 8;
+    }
   }
 
   // Footer note
@@ -645,28 +666,69 @@ export async function generateContractPdf(data: ContractPdfData): Promise<jsPDF>
   doc.text('These construction plans are an integral part of the contract and are incorporated by reference.', exPw / 2, exPh - 25, { align: 'center' });
   doc.text('All dimensions and specifications must be verified on site prior to construction.', exPw / 2, exPh - 18, { align: 'center' });
 
-  // ===== CONSTRUCTION PLAN SHEETS (S-1 through S-6) =====
-  try {
-    drawConstructionPages(doc, {
-      customer,
-      building,
-      accessories,
-      concrete,
-      colors,
-    });
-  } catch (planErr) {
-    console.error('Construction plan generation failed:', planErr);
-    // Add a fallback page so the contract is still usable
-    doc.addPage();
-    doc.setFontSize(14);
-    doc.setFont('helvetica', 'bold');
-    doc.setTextColor(200, 50, 50);
-    doc.text('Construction Plans could not be generated.', 20, 40);
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'normal');
-    doc.setTextColor(102, 102, 102);
-    doc.text('Error: ' + (planErr instanceof Error ? planErr.message : String(planErr)), 20, 52);
-    doc.text('Please contact support or regenerate the estimate.', 20, 62);
+  // ===== CONSTRUCTION PLAN SHEETS =====
+  if (hasPythonPlans && planImages.length > 0) {
+    // ── Professional Python-generated plans (ANSI B landscape, high-res) ──
+    try {
+      for (const img of planImages) {
+        // Add landscape page (17" x 11" = ANSI B) for Python plans
+        doc.addPage([792, 1224], 'landscape'); // 11"x17" in points
+        const pw = doc.internal.pageSize.getWidth();
+        const ph = doc.internal.pageSize.getHeight();
+
+        // Calculate scaling to fit page with small margin
+        const imgAspect = img.width / img.height;
+        const pageAspect = pw / ph;
+
+        let drawW: number, drawH: number, drawX: number, drawY: number;
+        if (imgAspect > pageAspect) {
+          // Image is wider relative to page — fit to width
+          drawW = pw;
+          drawH = pw / imgAspect;
+          drawX = 0;
+          drawY = (ph - drawH) / 2;
+        } else {
+          // Image is taller relative to page — fit to height
+          drawH = ph;
+          drawW = ph * imgAspect;
+          drawX = (pw - drawW) / 2;
+          drawY = 0;
+        }
+
+        doc.addImage(img.dataUrl, 'PNG', drawX, drawY, drawW, drawH);
+      }
+    } catch (planErr) {
+      console.error('Python plan embedding failed:', planErr);
+      // If Python plans fail to embed, fall back to JS plans
+      try {
+        drawConstructionPages(doc, { customer, building, accessories, concrete, colors });
+      } catch (jsPlanErr) {
+        console.error('Fallback JS plan generation also failed:', jsPlanErr);
+      }
+    }
+  } else {
+    // ── Fallback: Basic JS-generated plans (Letter size) ──
+    try {
+      drawConstructionPages(doc, {
+        customer,
+        building,
+        accessories,
+        concrete,
+        colors,
+      });
+    } catch (planErr) {
+      console.error('Construction plan generation failed:', planErr);
+      doc.addPage();
+      doc.setFontSize(14);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(200, 50, 50);
+      doc.text('Construction Plans could not be generated.', 20, 40);
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(102, 102, 102);
+      doc.text('Error: ' + (planErr instanceof Error ? planErr.message : String(planErr)), 20, 52);
+      doc.text('Please contact support or regenerate the estimate.', 20, 62);
+    }
   }
 
   return doc;

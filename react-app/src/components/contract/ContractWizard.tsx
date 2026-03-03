@@ -1,6 +1,6 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronLeft, ChevronRight, FileText, Download, Send, Loader2, HardHat, Check } from 'lucide-react';
+import { ChevronLeft, ChevronRight, FileText, Download, Send, Loader2, HardHat, Check, Wrench } from 'lucide-react';
 import { ContractProgress } from './ContractProgress';
 import {
   TermsAndConditionsSection,
@@ -12,6 +12,7 @@ import { useEstimatorStore } from '../../store/estimatorStore';
 import { downloadContractPdf } from '../../utils/pdf/contractPdf';
 import { downloadConstructionPlan } from '../../utils/pdf/constructionPlan';
 import { createConstructionPlanRecord, isAirtableConfigured } from '../../utils/airtable';
+import { generatePlans, isPlanServerAvailable, type PlanGenerationResult } from '../../utils/planService';
 import Button from '../common/Button/Button';
 import { containerVariants } from '../../animations/variants';
 import type { ContractConfig, PaymentMethod } from '../../types/estimator';
@@ -50,6 +51,16 @@ export function ContractWizard() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSendingToTeam, setIsSendingToTeam] = useState(false);
   const [sentToTeam, setSentToTeam] = useState(false);
+
+  // Plan generation state
+  const [isGeneratingPlans, setIsGeneratingPlans] = useState(false);
+  const [planResult, setPlanResult] = useState<PlanGenerationResult | null>(null);
+  const [planServerOnline, setPlanServerOnline] = useState<boolean | null>(null);
+
+  // Check if local plan server is running when contract opens
+  useEffect(() => {
+    isPlanServerAvailable().then(setPlanServerOnline);
+  }, []);
 
   // Section acknowledgment states for the 2 acknowledgment sections
   const [sectionStates, setSectionStates] = useState<Record<string, SectionState>>({
@@ -243,6 +254,36 @@ export function ContractWizard() {
     };
   };
 
+  // Generate professional construction plans via local Python server
+  const handleGeneratePlans = async () => {
+    setIsGeneratingPlans(true);
+    try {
+      const result = await generatePlans(
+        {
+          buildingType: building.buildingType,
+          width: building.width,
+          length: building.length,
+          height: building.height,
+        },
+        {
+          name: customer.name,
+          constructionAddress: customer.constructionAddress || undefined,
+        }
+      );
+      if (result && result.success) {
+        setPlanResult(result);
+        alert(`✅ ${result.passed} construction plan sheets generated successfully!`);
+      } else {
+        alert('Plan generation failed. Make sure the plan server is running:\n\npython plan_server.py');
+      }
+    } catch (error) {
+      console.error('Plan generation error:', error);
+      alert('Could not connect to the plan server.\n\nStart it with: python plan_server.py');
+    } finally {
+      setIsGeneratingPlans(false);
+    }
+  };
+
   // Download PDF handler
   const handleDownloadPdf = async () => {
     setIsGeneratingPdf(true);
@@ -254,7 +295,8 @@ export function ContractWizard() {
         colors,
         concrete,
         pricing,
-        contract: buildContractConfig()
+        contract: buildContractConfig(),
+        planResult: planResult || undefined,
       });
     } catch (error: unknown) {
       const msg = error instanceof Error ? error.message : String(error);
@@ -277,7 +319,8 @@ export function ContractWizard() {
         colors,
         concrete,
         pricing,
-        contract: buildContractConfig()
+        contract: buildContractConfig(),
+        planResult: planResult || undefined,
       });
 
       // Here you would also send to a backend, email, etc.
@@ -448,6 +491,35 @@ export function ContractWizard() {
               <div className="flex items-center gap-3">
                 {isLastSection && isContractComplete ? (
                   <>
+                    {/* Generate Plans Button — calls local Python server */}
+                    <Button
+                      variant="outline"
+                      onClick={handleGeneratePlans}
+                      disabled={isGeneratingPlans || planServerOnline === false}
+                      leftIcon={
+                        planResult ? <Check className="w-4 h-4" /> :
+                        isGeneratingPlans ? <Loader2 className="w-4 h-4 animate-spin" /> :
+                        <Wrench className="w-4 h-4" />
+                      }
+                      className={planResult
+                        ? "border-[#22C55E] text-[#22C55E] hover:bg-[#22C55E]/10"
+                        : planServerOnline === false
+                          ? "border-gray-300 text-gray-400 cursor-not-allowed"
+                          : "border-[#8B5CF6] text-[#8B5CF6] hover:bg-[#8B5CF6]/10"
+                      }
+                      title={planServerOnline === false
+                        ? 'Plan server not running. Start with: python plan_server.py'
+                        : planResult
+                          ? `${planResult.passed} sheets generated`
+                          : 'Generate professional construction plans'
+                      }
+                    >
+                      {planResult
+                        ? `Plans Ready (${planResult.passed})`
+                        : isGeneratingPlans
+                          ? 'Generating...'
+                          : 'Generate Plans'}
+                    </Button>
                     <Button
                       variant="outline"
                       onClick={handleSendToConstructionTeam}

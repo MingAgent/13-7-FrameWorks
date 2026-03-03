@@ -120,7 +120,10 @@ export function Step3Accessories() {
     const newWindow: WindowConfig = {
       id: generateId(),
       size: '3x3',
+      width: 3,
+      height: 3,
       wall: 'front',
+      position: 5,
       quantity: 1
     };
     addWindow(newWindow);

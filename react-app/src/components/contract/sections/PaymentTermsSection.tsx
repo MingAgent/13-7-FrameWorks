@@ -1,6 +1,7 @@
 import { motion } from 'framer-motion';
 import { ContractSection, TermSection } from '../ContractSection';
 import { CONTRACT_TERMS } from '../../../constants/contractTerms';
+import { DRAW_SCHEDULE } from '../../../constants/pricing';
 import { useEstimatorStore } from '../../../store/estimatorStore';
 import { itemVariants } from '../../../animations/variants';
 
@@ -22,11 +23,11 @@ export function PaymentTermsSection({
   const { pricing } = useEstimatorStore();
   const terms = CONTRACT_TERMS.paymentTerms;
 
-  // Calculate draw amounts based on actual pricing
-  const draw1 = pricing.grandTotal * 0.30;
-  const draw2 = pricing.grandTotal * 0.30;
-  const draw3 = pricing.grandTotal * 0.30;
-  const finalDraw = pricing.grandTotal * 0.10;
+  // Calculate draw amounts from centralized schedule
+  const drawAmounts = DRAW_SCHEDULE.map(d => ({
+    ...d,
+    amount: pricing.grandTotal * d.percent
+  }));
 
   return (
     <motion.div variants={itemVariants} className="space-y-6">
@@ -43,37 +44,20 @@ export function PaymentTermsSection({
         <h3 className="text-lg font-semibold text-white mb-4">Your Payment Schedule</h3>
 
         <div className="space-y-3">
-          <div className="flex justify-between items-center py-2 border-b border-white/10">
-            <div>
-              <span className="text-white font-medium">Draw 1 (30%)</span>
-              <p className="text-xs text-[#A3A3A3]">Due upon contract signing</p>
+          {drawAmounts.map((draw, idx) => (
+            <div
+              key={draw.label}
+              className={`flex justify-between items-center py-2 ${idx < drawAmounts.length - 1 ? 'border-b border-white/10' : ''}`}
+            >
+              <div>
+                <span className="text-white font-medium">{draw.label} ({Math.round(draw.percent * 100)}%)</span>
+                <p className="text-xs text-[#A3A3A3]">Due {draw.description.toLowerCase()}</p>
+              </div>
+              <span className={`font-bold text-lg ${idx === 0 ? 'text-[#14B8A6]' : 'text-white'}`}>
+                ${draw.amount.toLocaleString()}
+              </span>
             </div>
-            <span className="text-[#14B8A6] font-bold text-lg">${draw1.toLocaleString()}</span>
-          </div>
-
-          <div className="flex justify-between items-center py-2 border-b border-white/10">
-            <div>
-              <span className="text-white font-medium">Draw 2 (30%)</span>
-              <p className="text-xs text-[#A3A3A3]">Due upon delivery of materials</p>
-            </div>
-            <span className="text-white font-bold text-lg">${draw2.toLocaleString()}</span>
-          </div>
-
-          <div className="flex justify-between items-center py-2 border-b border-white/10">
-            <div>
-              <span className="text-white font-medium">Draw 3 (30%)</span>
-              <p className="text-xs text-[#A3A3A3]">Due upon completion of framing</p>
-            </div>
-            <span className="text-white font-bold text-lg">${draw3.toLocaleString()}</span>
-          </div>
-
-          <div className="flex justify-between items-center py-2">
-            <div>
-              <span className="text-white font-medium">Final Draw (10%)</span>
-              <p className="text-xs text-[#A3A3A3]">Due upon Substantial Completion</p>
-            </div>
-            <span className="text-white font-bold text-lg">${finalDraw.toLocaleString()}</span>
-          </div>
+          ))}
 
           <div className="flex justify-between items-center pt-4 border-t border-[#14B8A6]/30">
             <span className="text-white font-bold">Total Contract Sum</span>

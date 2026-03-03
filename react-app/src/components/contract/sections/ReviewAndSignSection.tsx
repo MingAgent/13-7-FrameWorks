@@ -4,6 +4,7 @@ import { Check, AlertCircle, CreditCard, Building2, User, FileCheck } from 'luci
 import { SignaturePad } from '../SignaturePad';
 import { useEstimatorStore } from '../../../store/estimatorStore';
 import { PAYMENT_METHODS, COMPANY_INFO } from '../../../constants/contractTerms';
+import { DRAW_SCHEDULE } from '../../../constants/pricing';
 import { ROOF_COLORS, WALL_COLORS, TRIM_COLORS, DOOR_COLORS } from '../../../constants/colors';
 
 interface ReviewAndSignSectionProps {
@@ -55,11 +56,11 @@ export function ReviewAndSignSection({
   const getColorName = (hex: string, colorList: { hex: string; name: string }[]) =>
     colorList.find(c => c.hex === hex)?.name || 'Custom';
 
-  // Calculate draw amounts
-  const draw1 = pricing.grandTotal * 0.30;
-  const draw2 = pricing.grandTotal * 0.30;
-  const draw3 = pricing.grandTotal * 0.30;
-  const finalDraw = pricing.grandTotal * 0.10;
+  // Calculate draw amounts from centralized schedule
+  const drawAmounts = DRAW_SCHEDULE.map(d => ({
+    ...d,
+    amount: pricing.grandTotal * d.percent
+  }));
 
   const sqft = building.width * building.length;
 
@@ -223,26 +224,13 @@ export function ReviewAndSignSection({
         <div className="mt-4 pt-4 border-t border-gray-200">
           <p className="text-xs text-gray-400 uppercase tracking-wide mb-3">Payment Schedule</p>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
-            <div className="bg-gray-50 rounded-lg p-3">
-              <p className="text-gray-400 text-xs">Draw 1 (30%)</p>
-              <p className="text-gray-900 font-medium">${draw1.toLocaleString()}</p>
-              <p className="text-xs text-gray-500">At Signing</p>
-            </div>
-            <div className="bg-gray-50 rounded-lg p-3">
-              <p className="text-gray-400 text-xs">Draw 2 (30%)</p>
-              <p className="text-gray-900 font-medium">${draw2.toLocaleString()}</p>
-              <p className="text-xs text-gray-500">Materials Delivery</p>
-            </div>
-            <div className="bg-gray-50 rounded-lg p-3">
-              <p className="text-gray-400 text-xs">Draw 3 (30%)</p>
-              <p className="text-gray-900 font-medium">${draw3.toLocaleString()}</p>
-              <p className="text-xs text-gray-500">Framing Complete</p>
-            </div>
-            <div className="bg-gray-50 rounded-lg p-3">
-              <p className="text-gray-400 text-xs">Final (10%)</p>
-              <p className="text-gray-900 font-medium">${finalDraw.toLocaleString()}</p>
-              <p className="text-xs text-gray-500">Completion</p>
-            </div>
+            {drawAmounts.map((draw) => (
+              <div key={draw.label} className="bg-gray-50 rounded-lg p-3">
+                <p className="text-gray-400 text-xs">{draw.label} ({Math.round(draw.percent * 100)}%)</p>
+                <p className="text-gray-900 font-medium">${draw.amount.toLocaleString()}</p>
+                <p className="text-xs text-gray-500">{draw.description}</p>
+              </div>
+            ))}
           </div>
         </div>
 
@@ -262,7 +250,7 @@ export function ReviewAndSignSection({
         </h3>
 
         <p className="text-sm text-gray-500 mb-4">
-          Select how you would like to pay the first draw (${draw1.toLocaleString()}) upon contract signing:
+          Select how you would like to pay the first draw (${drawAmounts[0].amount.toLocaleString()}) upon contract signing:
         </p>
 
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3">

@@ -32,6 +32,20 @@ export interface Breezeway {
   sideSide: boolean;
 }
 
+// Attached Carport Types (for Pole Barn & I-Beam only)
+export type CarportDepth = 10 | 12 | 16 | 20;
+export type CarportPartitionWall = 'left' | 'right' | 'front';
+export type CarportMode = 'attached' | 'interior';
+
+export interface AttachedCarportConfig {
+  enabled: boolean;                          // Whether a carport is attached
+  mode: CarportMode;                         // attached = lean-to outside, interior = inside footprint
+  attachWall: WallPosition;                  // Which wall of the main building it attaches to
+  depth: number;                             // How far it projects (custom value allowed)
+  customWidth: number | null;                // Custom width (null = auto = full wall length)
+  partitionWalls: CarportPartitionWall[];     // Which sides get panel walls (empty = fully open)
+}
+
 export interface BuildingConfig {
   // Building type selection
   buildingType: BuildingType;
@@ -45,6 +59,7 @@ export interface BuildingConfig {
   legType: LegType;
   buildingView: BuildingView;
   breezeway: Breezeway;
+  attachedCarport: AttachedCarportConfig;
 }
 
 // Door and Window Types
@@ -63,10 +78,15 @@ export interface DoorConfig {
   quantity: number;
 }
 
+export type WindowSize = '3x3' | '4x4';
+
 export interface WindowConfig {
   id: string;
-  size: '3x3' | '4x4';
-  wall: 'front' | 'back' | 'left' | 'right';
+  size: WindowSize;
+  width: number;   // Width in feet (3 or 4)
+  height: number;  // Height in feet (3 or 4)
+  wall: WallPosition;
+  position: number; // Position in feet from left edge of wall
   quantity: number;
 }
 
@@ -90,13 +110,16 @@ export interface ColorConfig {
   doors: string;
 }
 
-// Concrete Types
-export type ConcreteType = 'none' | 'piers' | 'slab' | 'turnkey';
+// Concrete / Foundation Types
+export type ConcreteType = 'none' | 'piers' | 'slab' | 'turnkey' | 'limestone' | 'caliche';
 
 export interface ConcreteConfig {
   type: ConcreteType;
   existingPad: boolean;
   thickness: number;
+  carportFoundationType: ConcreteType;   // Carport-specific foundation
+  carportExistingPad: boolean;           // Carport has existing pad
+  combinedFoundation: boolean;           // When true, carport uses same foundation as building
 }
 
 // Pricing Types
@@ -104,6 +127,8 @@ export interface PricingBreakdown {
   basePrice: number;
   accessoriesTotal: number;
   concreteTotal: number;
+  carportConcreteTotal: number;  // Carport foundation cost (when split)
+  carportTotal: number;
   laborTotal: number;
   deliveryTotal: number;
   grandTotal: number;
@@ -229,13 +254,41 @@ export interface BoltUpQuote {
   additionalNotes: string;
 }
 
+// ==================== MULTI-BUILDING TYPES ====================
+
+// Lean-to configuration
+export type LeanToWall = 'front' | 'back' | 'left' | 'right';
+
+export interface LeanToConfig {
+  isLeanTo: boolean;
+  parentBuildingIndex: number;  // Index of the building this lean-to attaches to
+  attachWall: LeanToWall;       // Which wall of the parent building it attaches to
+}
+
+// A single building entry in the multi-building array
+export interface BuildingEntry {
+  id: string;                    // Unique ID for this building
+  label: string;                 // User-friendly label ("Building 1", "Carport A", etc.)
+  building: BuildingConfig;
+  accessories: AccessoriesConfig;
+  doorPositions: DoorPositionMap;
+  colors: ColorConfig;
+  concrete: ConcreteConfig;
+  pricing: PricingBreakdown;
+  leanTo: LeanToConfig;
+}
+
 // Complete Estimator State
 export interface EstimatorState {
   // Navigation
   currentStep: number;
   currentContractSection: number;
 
-  // Form Data
+  // Multi-building
+  buildings: BuildingEntry[];          // Array of completed/saved buildings
+  currentBuildingIndex: number;        // Index in buildings[] being edited (-1 = new unsaved)
+
+  // Active editing fields (the building currently being configured)
   customer: CustomerInfo;
   building: BuildingConfig;
   accessories: AccessoriesConfig;
@@ -283,9 +336,19 @@ export interface EstimatorActions {
   updateDoor: (doorId: string, updates: Partial<DoorConfig>) => void;
   addWindow: (window: WindowConfig) => void;
   removeWindow: (windowId: string) => void;
+  updateWindow: (windowId: string, updates: Partial<WindowConfig>) => void;
 
   // Bolt-Up Quote
   setBoltUpQuote: (quote: Partial<BoltUpQuote>) => void;
+
+  // Multi-Building Actions
+  saveCurrentBuilding: () => void;                    // Save active editing fields into buildings[]
+  addBuilding: () => void;                            // Save current → reset to defaults → go to step 2
+  duplicateBuilding: () => void;                      // Save current → copy it → go to step 2
+  editBuilding: (index: number) => void;              // Save current → load building[index] → go to step 2
+  removeBuilding: (index: number) => void;            // Remove building from array
+  getBuildingLabel: (entry: BuildingEntry) => string;  // Get display label for a building
+  getEstimateGrandTotal: () => number;                // Sum of all buildings' grandTotals
 
   // Calculations
   calculatePricing: () => void;

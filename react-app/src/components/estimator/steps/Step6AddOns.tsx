@@ -1,56 +1,38 @@
 import { motion } from 'framer-motion';
-import { Plus, Minus } from 'lucide-react';
 import { useEstimatorStore } from '../../../store/estimatorStore';
 import { containerVariants, itemVariants } from '../../../animations/variants';
 import {
   WINDOW_PRICES,
   INSULATION_PRICES,
   OPTION_PRICES,
-  CONCRETE_PRICES,
-  BUILDING_SIZES,
-  EAVE_HEIGHTS,
   DOOR_PRICE_MATRIX,
-  WALK_DOOR_PRICES
+  WALK_DOOR_PRICES,
+  lookupPrice,
+  getEaveHeights,
+  getConcreteRate
 } from '../../../constants/pricing';
-import type { WindowConfig } from '../../../types/estimator';
+import type { ConcreteType } from '../../../types/estimator';
 
-const generateId = () => Math.random().toString(36).substring(2, 11);
+// Foundation option metadata (rates are injected dynamically based on building type)
+const FOUNDATION_OPTION_META: { type: ConcreteType; label: string; description: string }[] = [
+  { type: 'none',      label: 'No Foundation',          description: "I'll handle separately" },
+  { type: 'slab',      label: '4" Concrete Slab',       description: '#3 rebar, vapor barrier, control joints' },
+  { type: 'turnkey',   label: '4" Turnkey Slab',        description: 'Forms, perimeter thickening, turnkey' },
+  { type: 'limestone', label: 'Crushed Limestone Pad',  description: 'Compacted limestone base — $1,200/ton' },
+  { type: 'caliche',   label: 'Caliche Base',           description: 'Caliche base material — $28/CY + labor' },
+];
 
 export function Step6AddOns() {
   const {
     building,
     accessories,
     concrete,
-    addWindow,
-    removeWindow,
     setAccessories,
     setConcreteConfig
   } = useEstimatorStore();
 
-  // Window counts by size
-  const window3x3Count = accessories.windows.filter(w => w.size === '3x3').length;
-  const window4x4Count = accessories.windows.filter(w => w.size === '4x4').length;
-
-  // Handle window quantity change
-  const handleWindowChange = (size: '3x3' | '4x4', delta: number) => {
-    if (delta > 0) {
-      const newWindow: WindowConfig = {
-        id: generateId(),
-        size,
-        wall: 'front',
-        quantity: 1
-      };
-      addWindow(newWindow);
-    } else {
-      const windowsOfSize = accessories.windows.filter(w => w.size === size);
-      if (windowsOfSize.length > 0) {
-        removeWindow(windowsOfSize[windowsOfSize.length - 1].id);
-      }
-    }
-  };
-
-  // Calculate costs
-  const windowCost = (window3x3Count * WINDOW_PRICES['3x3']) + (window4x4Count * WINDOW_PRICES['4x4']);
+  // Window cost (windows are managed in Doors & Windows step, but costs still roll up here)
+  const windowCost = accessories.windows.reduce((total, w) => total + (WINDOW_PRICES[w.size] || 0), 0);
 
   // Insulation - separate wall and roof
   const hasWallInsulation = accessories.insulation === 'wall' || accessories.insulation === 'full';
@@ -80,13 +62,29 @@ export function Step6AddOns() {
   const insulationCost = INSULATION_PRICES[accessories.insulation] || 0;
   const gutterCost = accessories.gutters ? OPTION_PRICES.gutters : 0;
 
-  // Concrete
+  // Foundation cost — uses building-type-aware rate (I-Beam slab = $9.50/sqft vs $8.00)
   const sqft = building.width * building.length;
-  const concreteCost = concrete.type === 'slab' ? sqft * CONCRETE_PRICES.slab : 0;
+  const foundationRate = getConcreteRate(concrete.type, building.buildingType);
+  const foundationCost = concrete.type === 'none' ? 0 : sqft * foundationRate;
 
-  // Get running total from previous steps
-  const basePrice = BUILDING_SIZES.find(s => s.id === building.buildingSizeId)?.startingPrice || 0;
-  const heightModifier = EAVE_HEIGHTS.find(h => h.id === building.eaveHeightId)?.modifier || 0;
+  // Foundation label for running total
+  const getFoundationLabel = (): string => {
+    switch (concrete.type) {
+      case 'slab': return 'Concrete Slab (4")';
+      case 'turnkey': return 'Turnkey Slab (4")';
+      case 'limestone': return 'Limestone Pad';
+      case 'caliche': return 'Caliche Base';
+      default: return 'Foundation';
+    }
+  };
+
+  // Get running total from previous steps using price table lookup
+  const heights = getEaveHeights(building.buildingType);
+  const baseHeightId = heights[0]?.id ?? '10';
+  const basePriceAtLowestHeight = lookupPrice(building.buildingType, building.buildingSizeId, baseHeightId);
+  const currentBuildingPrice = lookupPrice(building.buildingType, building.buildingSizeId, building.eaveHeightId);
+  const basePrice = basePriceAtLowestHeight;
+  const heightModifier = currentBuildingPrice - basePriceAtLowestHeight;
   const walkDoorCount = accessories.walkDoors.length;
   const extraWalkDoors = Math.max(0, walkDoorCount - 1);
   const walkDoorCost = extraWalkDoors * WALK_DOOR_PRICES.extra_walkthrough;
@@ -95,7 +93,7 @@ export function Step6AddOns() {
     return total + (DOOR_PRICE_MATRIX[key] || 0);
   }, 0);
 
-  const addOnsCost = windowCost + insulationCost + gutterCost + concreteCost;
+  const addOnsCost = windowCost + insulationCost + gutterCost + foundationCost;
   const totalSoFar = basePrice + heightModifier + walkDoorCost + overheadDoorCost + addOnsCost;
 
   return (
@@ -109,70 +107,16 @@ export function Step6AddOns() {
         Add optional features and upgrades to your building.
       </motion.p>
 
-      {/* Windows */}
-      <motion.div variants={itemVariants} className="bg-white rounded-lg p-6 border border-gray-200">
-        <h3 className="text-lg font-semibold text-gray-800 mb-4">Windows</h3>
-
-        <div className="space-y-4">
-          {/* 3x3 Window */}
-          <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-            <div>
-              <p className="font-medium text-gray-800">3' x 3' Fixed Window</p>
-              <p className="text-sm text-gray-500">${WINDOW_PRICES['3x3'].toLocaleString()} each</p>
-            </div>
-            <div className="flex items-center gap-3">
-              <button
-                onClick={() => handleWindowChange('3x3', -1)}
-                disabled={window3x3Count === 0}
-                className="w-8 h-8 rounded-lg bg-gray-200 hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
-              >
-                <Minus className="w-4 h-4" />
-              </button>
-              <span className="w-8 text-center font-bold text-gray-800">{window3x3Count}</span>
-              <button
-                onClick={() => handleWindowChange('3x3', 1)}
-                className="w-8 h-8 rounded-lg bg-gray-200 hover:bg-gray-300 flex items-center justify-center"
-              >
-                <Plus className="w-4 h-4" />
-              </button>
-              {window3x3Count > 0 && (
-                <span className="text-emerald-600 font-medium ml-2">
-                  ${(window3x3Count * WINDOW_PRICES['3x3']).toLocaleString()}
-                </span>
-              )}
-            </div>
-          </div>
-
-          {/* 4x4 Window */}
-          <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-            <div>
-              <p className="font-medium text-gray-800">4' x 4' Fixed Window</p>
-              <p className="text-sm text-gray-500">${WINDOW_PRICES['4x4'].toLocaleString()} each</p>
-            </div>
-            <div className="flex items-center gap-3">
-              <button
-                onClick={() => handleWindowChange('4x4', -1)}
-                disabled={window4x4Count === 0}
-                className="w-8 h-8 rounded-lg bg-gray-200 hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
-              >
-                <Minus className="w-4 h-4" />
-              </button>
-              <span className="w-8 text-center font-bold text-gray-800">{window4x4Count}</span>
-              <button
-                onClick={() => handleWindowChange('4x4', 1)}
-                className="w-8 h-8 rounded-lg bg-gray-200 hover:bg-gray-300 flex items-center justify-center"
-              >
-                <Plus className="w-4 h-4" />
-              </button>
-              {window4x4Count > 0 && (
-                <span className="text-emerald-600 font-medium ml-2">
-                  ${(window4x4Count * WINDOW_PRICES['4x4']).toLocaleString()}
-                </span>
-              )}
-            </div>
-          </div>
-        </div>
-      </motion.div>
+      {/* Windows Summary (managed in Doors & Windows step) */}
+      {accessories.windows.length > 0 && (
+        <motion.div variants={itemVariants} className="bg-white rounded-lg p-6 border border-gray-200">
+          <h3 className="text-lg font-semibold text-gray-800 mb-2">Windows</h3>
+          <p className="text-sm text-gray-500">
+            {accessories.windows.length} window{accessories.windows.length !== 1 ? 's' : ''} configured — ${windowCost.toLocaleString()} total
+          </p>
+          <p className="text-xs text-gray-400 mt-1">Go back to Doors & Windows to modify placement</p>
+        </motion.div>
+      )}
 
       {/* Insulation */}
       <motion.div variants={itemVariants} className="bg-white rounded-lg p-6 border border-gray-200">
@@ -231,38 +175,51 @@ export function Step6AddOns() {
         </div>
       </motion.div>
 
-      {/* Concrete */}
+      {/* Foundation / Concrete / Limestone */}
       <motion.div variants={itemVariants} className="bg-white rounded-lg p-6 border border-gray-200">
-        <h3 className="text-lg font-semibold text-gray-800 mb-4">Concrete Slab</h3>
+        <h3 className="text-lg font-semibold text-gray-800 mb-2">Foundation</h3>
         <p className="text-sm text-gray-500 mb-4">
-          ${CONCRETE_PRICES.slab}/sq ft - Based on {sqft.toLocaleString()} sq ft = ${(sqft * CONCRETE_PRICES.slab).toLocaleString()}
+          Building footprint: {sqft.toLocaleString()} sq ft ({building.width}' × {building.length}')
         </p>
 
-        <div className="flex gap-4">
-          <button
-            onClick={() => setConcreteConfig({ type: 'none' })}
-            className={`flex-1 p-4 rounded-lg border-2 transition-all ${
-              concrete.type === 'none'
-                ? 'border-cyan-400 bg-emerald-500 text-white'
-                : 'border-gray-200 bg-white text-gray-800 hover:border-gray-300'
-            }`}
-          >
-            <p className="font-medium">No Concrete</p>
-            <p className={`text-sm ${concrete.type === 'none' ? 'text-white/80' : 'text-gray-500'}`}>I'll handle separately</p>
-          </button>
-          <button
-            onClick={() => setConcreteConfig({ type: 'slab' })}
-            className={`flex-1 p-4 rounded-lg border-2 transition-all ${
-              concrete.type === 'slab'
-                ? 'border-cyan-400 bg-emerald-500 text-white'
-                : 'border-gray-200 bg-white text-gray-800 hover:border-gray-300'
-            }`}
-          >
-            <p className="font-medium">Add Concrete Slab</p>
-            <p className={`text-sm ${concrete.type === 'slab' ? 'text-white/80' : 'text-emerald-600 font-semibold'}`}>
-              +${(sqft * CONCRETE_PRICES.slab).toLocaleString()}
-            </p>
-          </button>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          {FOUNDATION_OPTION_META.map((option) => {
+            const isSelected = concrete.type === option.type;
+            const rate = getConcreteRate(option.type, building.buildingType);
+            const optionCost = option.type === 'none' ? 0 : sqft * rate;
+            const rateDisplay = option.type === 'none' ? '$0' : `$${rate % 1 === 0 ? rate : rate.toFixed(2)}/sq ft`;
+
+            return (
+              <button
+                key={option.type}
+                onClick={() => setConcreteConfig({ type: option.type })}
+                className={`p-4 rounded-lg border-2 transition-all text-left ${
+                  isSelected
+                    ? 'border-cyan-400 bg-emerald-500 text-white'
+                    : 'border-gray-200 bg-white text-gray-800 hover:border-gray-300'
+                }`}
+              >
+                <p className="font-medium text-sm">{option.label}</p>
+                <p className={`text-xs mt-1 ${isSelected ? 'text-white/80' : 'text-gray-500'}`}>
+                  {option.description}
+                </p>
+                {option.type !== 'none' ? (
+                  <>
+                    <p className={`text-xs mt-1 ${isSelected ? 'text-white/70' : 'text-gray-400'}`}>
+                      {rateDisplay}
+                    </p>
+                    <p className={`text-sm font-semibold mt-1 ${isSelected ? 'text-white' : 'text-emerald-600'}`}>
+                      +${optionCost.toLocaleString()}
+                    </p>
+                  </>
+                ) : (
+                  <p className={`text-sm mt-2 ${isSelected ? 'text-white/80' : 'text-gray-400'}`}>
+                    {rateDisplay}
+                  </p>
+                )}
+              </button>
+            );
+          })}
         </div>
       </motion.div>
 
@@ -300,10 +257,10 @@ export function Step6AddOns() {
               <span className="text-gray-800">+${gutterCost.toLocaleString()}</span>
             </div>
           )}
-          {concreteCost > 0 && (
+          {foundationCost > 0 && (
             <div className="flex justify-between text-sm">
-              <span className="text-gray-500">Concrete Slab</span>
-              <span className="text-gray-800">+${concreteCost.toLocaleString()}</span>
+              <span className="text-gray-500">{getFoundationLabel()}</span>
+              <span className="text-gray-800">+${foundationCost.toLocaleString()}</span>
             </div>
           )}
           <div className="border-t border-gray-200 pt-2 mt-2 flex justify-between">

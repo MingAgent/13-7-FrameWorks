@@ -5,8 +5,7 @@ import type {
   PricingBreakdown
 } from '../../types/estimator';
 import {
-  BUILDING_SIZES,
-  EAVE_HEIGHTS,
+  lookupPrice,
   LEG_TYPE_MULTIPLIERS,
   DOOR_PRICE_MATRIX,
   WALK_DOOR_PRICES,
@@ -15,24 +14,18 @@ import {
   OPTION_PRICES,
   CONCRETE_PRICES,
   DELIVERY_BASE,
-  DEPOSIT_PERCENTAGE
+  DEPOSIT_PERCENTAGE,
+  getConcreteRate,
+  calculateAttachedCarportPrice
 } from '../../constants/pricing';
 
 /**
- * Calculate the base price of the building structure using cookie-cutter pricing
+ * Calculate the base price of the building structure using price table lookup
+ * Prices are looked up from the master price table based on building type + size + height
  */
 export function calculateBasePrice(building: BuildingConfig): number {
-  // Find the selected building size
-  const selectedSize = BUILDING_SIZES.find(s => s.id === building.buildingSizeId);
-  const selectedHeight = EAVE_HEIGHTS.find(h => h.id === building.eaveHeightId);
-
-  if (!selectedSize) {
-    // Fallback to first size if not found
-    return BUILDING_SIZES[0].startingPrice;
-  }
-
-  // Base price from cookie-cutter size + eave height modifier
-  let basePrice = selectedSize.startingPrice + (selectedHeight?.modifier || 0);
+  // Look up exact price from the price table (includes materials + labor + GC + margin)
+  let basePrice = lookupPrice(building.buildingType, building.buildingSizeId, building.eaveHeightId);
 
   // Apply leg type multiplier for certified frames
   const legMultiplier = LEG_TYPE_MULTIPLIERS[building.legType];
@@ -90,39 +83,74 @@ export function calculateAccessoriesTotal(
 }
 
 /**
- * Calculate concrete costs
+ * Calculate concrete cost for a given area, foundation type, and building type
  */
-export function calculateConcreteTotal(
-  building: BuildingConfig,
-  concrete: ConcreteConfig
+function calculateFoundationCost(
+  sqft: number,
+  perimeter: number,
+  foundationType: string,
+  existingPad: boolean,
+  buildingType: string
 ): number {
-  if (concrete.type === 'none' || concrete.existingPad) {
-    return 0;
-  }
+  if (foundationType === 'none' || existingPad) return 0;
 
-  const sqft = building.width * building.length;
-  // All slabs are 4" with #3 rebar — no thickness multiplier needed
-
-  if (concrete.type === 'piers') {
-    // Estimate number of piers based on building size
-    const perimeter = 2 * (building.width + building.length);
-    const numPiers = Math.ceil(perimeter / 10); // One pier every 10 feet
+  if (foundationType === 'piers') {
+    const numPiers = Math.ceil(perimeter / 10);
     return numPiers * CONCRETE_PRICES.piers;
   }
 
-  if (concrete.type === 'slab') {
-    return sqft * CONCRETE_PRICES.slab;
-  }
-
-  if (concrete.type === 'turnkey') {
-    return sqft * CONCRETE_PRICES.turnkey;
+  if (['slab', 'turnkey', 'limestone', 'caliche'].includes(foundationType)) {
+    const rate = getConcreteRate(foundationType, buildingType);
+    return sqft * rate;
   }
 
   return 0;
 }
 
 /**
+ * Calculate concrete costs for the building (excludes carport foundation)
+ */
+export function calculateConcreteTotal(
+  building: BuildingConfig,
+  concrete: ConcreteConfig
+): number {
+  const sqft = building.width * building.length;
+  const perimeter = 2 * (building.width + building.length);
+  return calculateFoundationCost(sqft, perimeter, concrete.type, concrete.existingPad, building.buildingType);
+}
+
+/**
+ * Calculate carport foundation cost (separate from building)
+ */
+export function calculateCarportConcreteTotal(
+  building: BuildingConfig,
+  concrete: ConcreteConfig
+): number {
+  const carport = building.attachedCarport;
+  if (!carport.enabled) return 0;
+
+  // If combined foundation, carport cost is included in the building foundation calc
+  if (concrete.combinedFoundation) return 0;
+
+  // Calculate carport footprint
+  const wall = carport.attachWall;
+  const wallLength = (wall === 'front' || wall === 'back') ? building.width : building.length;
+  const carportWidth = carport.customWidth ?? wallLength;
+  const carportSqft = carportWidth * carport.depth;
+  const carportPerimeter = 2 * (carportWidth + carport.depth);
+
+  return calculateFoundationCost(
+    carportSqft,
+    carportPerimeter,
+    concrete.carportFoundationType,
+    concrete.carportExistingPad,
+    building.buildingType
+  );
+}
+
+/**
  * Labor is included in the base building package — no separate charge
+ * (Labor is baked into the price table: Materials + Concrete Labor + Erection Labor + GC + Margin)
  */
 export function calculateLaborTotal(_building: BuildingConfig): number {
   return 0;
@@ -146,17 +174,38 @@ export function calculateTotalPrice(
 ): PricingBreakdown {
   const basePrice = calculateBasePrice(building);
   const accessoriesTotal = calculateAccessoriesTotal(building, accessories);
-  const concreteTotal = calculateConcreteTotal(building, concrete);
-  // Labor is included in base building package — no separate charge
-  const deliveryTotal = calculateDeliveryTotal(distanceMiles);
 
-  const grandTotal = basePrice + accessoriesTotal + concreteTotal + deliveryTotal;
+  // Foundation costs — building and carport calculated separately
+  let concreteTotal: number;
+  let carportConcreteTotal: number;
+
+  if (building.attachedCarport.enabled && concrete.combinedFoundation) {
+    // Combined: calculate foundation for building + carport as one footprint
+    const wall = building.attachedCarport.attachWall;
+    const wallLength = (wall === 'front' || wall === 'back') ? building.width : building.length;
+    const carportWidth = building.attachedCarport.customWidth ?? wallLength;
+    const carportSqft = carportWidth * building.attachedCarport.depth;
+    const totalSqft = (building.width * building.length) + (building.attachedCarport.mode === 'interior' ? 0 : carportSqft);
+    const totalPerimeter = 2 * (building.width + building.length); // approximate
+    concreteTotal = calculateFoundationCost(totalSqft, totalPerimeter, concrete.type, concrete.existingPad, building.buildingType);
+    carportConcreteTotal = 0;
+  } else {
+    concreteTotal = calculateConcreteTotal(building, concrete);
+    carportConcreteTotal = calculateCarportConcreteTotal(building, concrete);
+  }
+
+  const deliveryTotal = calculateDeliveryTotal(distanceMiles);
+  const carportTotal = calculateAttachedCarportPrice(building);
+
+  const grandTotal = basePrice + accessoriesTotal + concreteTotal + carportConcreteTotal + carportTotal + deliveryTotal;
   const depositAmount = grandTotal * DEPOSIT_PERCENTAGE;
 
   return {
     basePrice: Math.round(basePrice * 100) / 100,
     accessoriesTotal: Math.round(accessoriesTotal * 100) / 100,
     concreteTotal: Math.round(concreteTotal * 100) / 100,
+    carportConcreteTotal: Math.round(carportConcreteTotal * 100) / 100,
+    carportTotal: Math.round(carportTotal * 100) / 100,
     laborTotal: 0,
     deliveryTotal: Math.round(deliveryTotal * 100) / 100,
     grandTotal: Math.round(grandTotal * 100) / 100,

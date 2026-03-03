@@ -6,18 +6,24 @@ import type { DoorConfig } from '../../../types/estimator';
 
 interface BuildingProfileProps {
   showDoors?: boolean;
+  showWindows?: boolean;
   showClearanceZones?: boolean;
   className?: string;
   selectedDoorId?: string | null;
+  selectedWindowId?: string | null;
   onDoorClick?: (doorId: string) => void;
+  onWindowClick?: (windowId: string) => void;
 }
 
 export function BuildingProfile({
   showDoors = true,
+  showWindows = false,
   showClearanceZones = false,
   className = '',
   selectedDoorId = null,
-  onDoorClick
+  selectedWindowId = null,
+  onDoorClick,
+  onWindowClick
 }: BuildingProfileProps) {
   const { building, colors, accessories } = useEstimatorStore();
   const { width, length, height, buildingView } = building;
@@ -194,6 +200,184 @@ export function BuildingProfile({
           strokeLinecap="round"
         />
 
+        {/* ─── Attached Carport (lean-to) ─── */}
+        {(() => {
+          const carport = building.attachedCarport;
+          if (!carport.enabled) return null;
+
+          const aw = carport.attachWall;
+          const cd = carport.depth;
+          const carportDepthPx = cd * scale;
+
+          // Determine carport visibility based on current view
+          // Perpendicular views show the lean-to extending to one side
+          // Face-on attach wall: carport extends toward viewer (show as depth extension)
+          // Opposite wall: carport is behind building, hidden
+
+          type Side = 'left' | 'right' | 'hidden' | 'face-on';
+          let carportSide: Side = 'hidden';
+
+          if (buildingView === 'front') {
+            if (aw === 'left') carportSide = 'left';
+            else if (aw === 'right') carportSide = 'right';
+            else if (aw === 'front') carportSide = 'face-on';
+            // back = hidden
+          } else if (buildingView === 'back') {
+            // Back view is mirrored: looking from behind
+            if (aw === 'left') carportSide = 'right';
+            else if (aw === 'right') carportSide = 'left';
+            else if (aw === 'back') carportSide = 'face-on';
+            // front = hidden
+          } else if (buildingView === 'left') {
+            if (aw === 'front') carportSide = 'right';
+            else if (aw === 'back') carportSide = 'left';
+            else if (aw === 'left') carportSide = 'face-on';
+            // right = hidden
+          } else if (buildingView === 'right') {
+            if (aw === 'front') carportSide = 'left';
+            else if (aw === 'back') carportSide = 'right';
+            else if (aw === 'right') carportSide = 'face-on';
+            // left = hidden
+          }
+
+          if (carportSide === 'hidden') return null;
+
+          const roofTopY = groundY - scaledHeight;
+          const leanToLowY = roofTopY + scaledHeight * 0.25; // lean-to roof drops ~25% of wall height
+          const hasLeftPartition = carport.partitionWalls.includes('left');
+          const hasRightPartition = carport.partitionWalls.includes('right');
+          const hasFrontPartition = carport.partitionWalls.includes('front');
+
+          if (carportSide === 'face-on') {
+            // Viewing the attach wall face-on: show a subtle roof overhang extending toward viewer
+            return (
+              <motion.g initial={{ opacity: 0 }} animate={{ opacity: 0.6 }} transition={{ duration: 0.4, delay: 0.4 }}>
+                {/* Roof overhang bar */}
+                <rect
+                  x={buildingX - 8}
+                  y={roofTopY - 6}
+                  width={scaledWidth + 16}
+                  height={6}
+                  fill="#fb923c"
+                  opacity={0.5}
+                  rx="1"
+                />
+                <text
+                  x={buildingX + scaledWidth / 2}
+                  y={roofTopY - 12}
+                  textAnchor="middle"
+                  className="text-xs"
+                  fill="#fb923c"
+                >
+                  Carport ({cd}' deep)
+                </text>
+              </motion.g>
+            );
+          }
+
+          // Lean-to: extends left or right from building
+          const isLeft = carportSide === 'left';
+          const cpX = isLeft ? buildingX - carportDepthPx : buildingX + scaledWidth;
+          const attachX = isLeft ? buildingX : buildingX + scaledWidth;
+
+          // Determine which partition walls are visible from this view
+          // The "front" partition is the outer vertical edge of the carport
+          // The "left"/"right" partitions appear as side walls depending on orientation
+          // From this perpendicular view, the "front" (open side) is the outer vertical edge
+          const showFrontWall = hasFrontPartition;
+          // From a side view, one of left/right partitions would be visible as the near-side wall
+          // but since it's a see-through view, both can be hinted at
+
+          return (
+            <motion.g initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.4, delay: 0.35 }}>
+              {/* Carport ground/slab area */}
+              <rect
+                x={cpX}
+                y={groundY}
+                width={carportDepthPx}
+                height={4}
+                fill="#fb923c"
+                opacity={0.3}
+              />
+
+              {/* Support post at outer edge */}
+              <line
+                x1={isLeft ? cpX : cpX + carportDepthPx}
+                y1={groundY}
+                x2={isLeft ? cpX : cpX + carportDepthPx}
+                y2={leanToLowY}
+                stroke="#8B4513"
+                strokeWidth="3"
+                opacity={0.7}
+              />
+
+              {/* Lean-to roof line */}
+              <line
+                x1={attachX}
+                y1={roofTopY}
+                x2={isLeft ? cpX : cpX + carportDepthPx}
+                y2={leanToLowY}
+                stroke="#fb923c"
+                strokeWidth="5"
+                strokeLinecap="round"
+              />
+
+              {/* Front partition wall (outer edge) */}
+              {showFrontWall && (
+                <line
+                  x1={isLeft ? cpX : cpX + carportDepthPx}
+                  y1={groundY}
+                  x2={isLeft ? cpX : cpX + carportDepthPx}
+                  y2={leanToLowY}
+                  stroke="#fb923c"
+                  strokeWidth="2.5"
+                  opacity={0.8}
+                />
+              )}
+
+              {/* Side partition walls (shown as horizontal lines at lean-to edges) */}
+              {(hasLeftPartition || hasRightPartition) && (
+                <line
+                  x1={attachX}
+                  y1={groundY}
+                  x2={isLeft ? cpX : cpX + carportDepthPx}
+                  y2={groundY}
+                  stroke="#fb923c"
+                  strokeWidth="2"
+                  opacity={0.5}
+                  strokeDasharray="4,2"
+                />
+              )}
+
+              {/* Carport area fill (semi-transparent) */}
+              <path
+                d={`M ${attachX} ${roofTopY} L ${isLeft ? cpX : cpX + carportDepthPx} ${leanToLowY} L ${isLeft ? cpX : cpX + carportDepthPx} ${groundY} L ${attachX} ${groundY} Z`}
+                fill="rgba(251,146,60,0.08)"
+              />
+
+              {/* Carport depth dimension */}
+              <line
+                x1={cpX}
+                y1={groundY + 20}
+                x2={isLeft ? buildingX : cpX + carportDepthPx}
+                y2={groundY + 20}
+                stroke="#fb923c"
+                strokeWidth="1"
+                opacity={0.6}
+              />
+              <text
+                x={cpX + (isLeft ? carportDepthPx / 2 : carportDepthPx / 2)}
+                y={groundY + 35}
+                textAnchor="middle"
+                className="text-xs font-medium"
+                fill="#fb923c"
+              >
+                {cd}'
+              </text>
+            </motion.g>
+          );
+        })()}
+
         {/* Posts */}
         {[leftPostX, centerPostX, rightPostX].map((x, i) => (
           <motion.line
@@ -302,6 +486,74 @@ export function BuildingProfile({
             </motion.g>
           );
         })}
+
+        {/* Windows on current wall */}
+        {showWindows && accessories.windows
+          .filter(win => win.wall === buildingView)
+          .map((win, index) => {
+            const winPosition = win.position || 5;
+            const winWidth = win.width || 3;
+            const winHeight = win.height || 3;
+            const xPos = buildingX + (winPosition * scale);
+            const winWidthPx = winWidth * scale;
+            const winHeightPx = winHeight * scale;
+            // Windows sit 3ft from ground by default
+            const windowBottomOffset = 3;
+            const yPos = groundY - (windowBottomOffset * scale) - winHeightPx;
+            const isSelected = selectedWindowId === win.id;
+
+            return (
+              <motion.g
+                key={win.id}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.3, delay: 0.6 + index * 0.08 }}
+                onClick={() => onWindowClick?.(win.id)}
+                className={onWindowClick ? 'cursor-pointer' : ''}
+              >
+                {/* Window frame */}
+                <rect
+                  x={xPos}
+                  y={yPos}
+                  width={winWidthPx}
+                  height={winHeightPx}
+                  fill="rgba(56, 189, 248, 0.3)"
+                  stroke={isSelected ? '#38bdf8' : '#0ea5e9'}
+                  strokeWidth={isSelected ? 3 : 1.5}
+                />
+                {/* Window cross */}
+                <line
+                  x1={xPos}
+                  y1={yPos + winHeightPx / 2}
+                  x2={xPos + winWidthPx}
+                  y2={yPos + winHeightPx / 2}
+                  stroke={isSelected ? '#38bdf8' : '#0ea5e9'}
+                  strokeWidth="1"
+                  opacity="0.6"
+                />
+                <line
+                  x1={xPos + winWidthPx / 2}
+                  y1={yPos}
+                  x2={xPos + winWidthPx / 2}
+                  y2={yPos + winHeightPx}
+                  stroke={isSelected ? '#38bdf8' : '#0ea5e9'}
+                  strokeWidth="1"
+                  opacity="0.6"
+                />
+                {/* Window label */}
+                <text
+                  x={xPos + winWidthPx / 2}
+                  y={yPos - 6}
+                  textAnchor="middle"
+                  className="text-xs font-medium"
+                  fill={isSelected ? '#38bdf8' : '#0ea5e9'}
+                >
+                  {win.size}
+                </text>
+              </motion.g>
+            );
+          })
+        }
 
         {/* Dimension labels */}
         {/* Width */}
