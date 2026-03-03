@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BC-Bid Titan — System Architecture Overview</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f172a; color: #e2e8f0; min-height: 100vh; padding: 32px; }
+  .header { text-align: center; margin-bottom: 40px; }
+  .header h1 { font-size: 28px; font-weight: 700; color: #fff; margin-bottom: 8px; }
+  .header p { font-size: 14px; color: #94a3b8; }
+  .header .badge { display: inline-block; background: #1e3a5f; color: #38bdf8; padding: 4px 12px; border-radius: 20px; font-size: 12px; margin-top: 8px; }
+
+  .flow-container { max-width: 1400px; margin: 0 auto; }
+
+  /* Customer Journey Row */
+  .journey-label { text-align: center; font-size: 13px; color: #64748b; text-transform: uppercase; letter-spacing: 2px; margin-bottom: 16px; font-weight: 600; }
+  .journey-row { display: flex; gap: 12px; margin-bottom: 32px; align-items: stretch; }
+  .journey-row .card { flex: 1; position: relative; }
+
+  /* Cards */
+  .card { background: #1e293b; border-radius: 12px; padding: 20px; border: 1px solid #334155; transition: all 0.2s; }
+  .card:hover { border-color: #475569; transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,0.3); }
+  .card .icon { width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 20px; margin-bottom: 12px; }
+  .card h3 { font-size: 15px; font-weight: 600; color: #f1f5f9; margin-bottom: 4px; }
+  .card .subtitle { font-size: 11px; color: #64748b; margin-bottom: 10px; font-weight: 500; text-transform: uppercase; letter-spacing: 1px; }
+  .card .tech { font-size: 11px; color: #38bdf8; background: #0f2744; padding: 2px 8px; border-radius: 4px; display: inline-block; margin-bottom: 10px; }
+  .card ul { list-style: none; padding: 0; }
+  .card ul li { font-size: 12px; color: #94a3b8; padding: 3px 0; padding-left: 16px; position: relative; }
+  .card ul li::before { content: "→"; position: absolute; left: 0; color: #475569; }
+
+  /* Color coding */
+  .blue .icon { background: #1e3a5f; color: #3b82f6; }
+  .blue { border-left: 3px solid #3b82f6; }
+  .green .icon { background: #064e3b; color: #10b981; }
+  .green { border-left: 3px solid #10b981; }
+  .purple .icon { background: #3b1f6e; color: #8b5cf6; }
+  .purple { border-left: 3px solid #8b5cf6; }
+  .orange .icon { background: #4a2c0a; color: #f59e0b; }
+  .orange { border-left: 3px solid #f59e0b; }
+  .red .icon { background: #4a1010; color: #ef4444; }
+  .red { border-left: 3px solid #ef4444; }
+  .teal .icon { background: #0a3d3d; color: #14b8a6; }
+  .teal { border-left: 3px solid #14b8a6; }
+
+  /* Arrows between cards */
+  .arrow-connector { display: flex; align-items: center; justify-content: center; color: #475569; font-size: 20px; min-width: 24px; }
+
+  /* Backend Row */
+  .backend-row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-bottom: 32px; }
+
+  /* Data flow section */
+  .data-flows { background: #1e293b; border-radius: 12px; padding: 24px; border: 1px solid #334155; margin-bottom: 32px; }
+  .data-flows h3 { font-size: 16px; margin-bottom: 16px; color: #f1f5f9; }
+  .flow-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+  .flow-item { background: #0f172a; border-radius: 8px; padding: 12px; border: 1px solid #1e293b; }
+  .flow-item .from-to { font-size: 11px; color: #64748b; margin-bottom: 4px; }
+  .flow-item .what { font-size: 12px; color: #cbd5e1; }
+  .flow-item .arrow-label { color: #38bdf8; font-size: 11px; }
+
+  /* Stats bar */
+  .stats { display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; margin-top: 32px; }
+  .stat { text-align: center; background: #1e293b; border-radius: 8px; padding: 16px 8px; }
+  .stat .num { font-size: 24px; font-weight: 700; color: #38bdf8; }
+  .stat .label { font-size: 11px; color: #64748b; margin-top: 4px; }
+
+  /* Legend */
+  .legend { display: flex; gap: 20px; justify-content: center; margin: 24px 0; flex-wrap: wrap; }
+  .legend-item { display: flex; align-items: center; gap: 6px; font-size: 11px; color: #94a3b8; }
+  .legend-dot { width: 10px; height: 10px; border-radius: 3px; }
+
+  @media (max-width: 1024px) {
+    .journey-row { flex-direction: column; }
+    .backend-row { grid-template-columns: repeat(2, 1fr); }
+    .flow-grid { grid-template-columns: repeat(2, 1fr); }
+    .stats { grid-template-columns: repeat(3, 1fr); }
+  }
+</style>
+</head>
+<body>
+
+<div class="flow-container">
+  <div class="header">
+    <h1>BC-Bid Titan — System Architecture</h1>
+    <p>End-to-End Metal Building Estimation, Contract & Project Management Platform</p>
+    <span class="badge">13|7 FrameWorks · Burnett Customs · MVP Architecture · Feb 2026</span>
+  </div>
+
+  <div class="legend">
+    <div class="legend-item"><div class="legend-dot" style="background:#3b82f6"></div> Customer-Facing</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#8b5cf6"></div> AI / Integration</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#10b981"></div> Automation</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#f59e0b"></div> Data / Storage</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#ef4444"></div> Risk / Monitoring</div>
+    <div class="legend-item"><div class="legend-dot" style="background:#14b8a6"></div> Operations</div>
+  </div>
+
+  <!-- Customer Journey -->
+  <div class="journey-label">── Customer Journey Flow ──</div>
+  <div class="journey-row">
+    <div class="card blue">
+      <div class="icon">🏗️</div>
+      <h3>1. Estimating App</h3>
+      <div class="subtitle">React · GitHub Pages</div>
+      <div class="tech">React 18 + Vite + TypeScript</div>
+      <ul>
+        <li>3 building types (Pole Barn, Carport, Bolt-Up)</li>
+        <li>10 sizes × 5 heights = 50 configs per type</li>
+        <li>Door, add-on & color configuration</li>
+        <li>Real-time pricing from Airtable</li>
+        <li>Step-by-step wizard (6 steps)</li>
+      </ul>
+    </div>
+    <div class="arrow-connector">▶</div>
+    <div class="card purple">
+      <div class="icon">🎨</div>
+      <h3>2. AI Image Generation</h3>
+      <div class="subtitle">n8n + fal.ai</div>
+      <div class="tech">Flux Dev · fal.ai API</div>
+      <ul>
+        <li>Auto-generates realistic building rendering</li>
+        <li>Matches customer's exact selections</li>
+        <li>Colors, doors, size all reflected</li>
+        <li>Texas rural setting context</li>
+        <li>30-60 second generation time</li>
+      </ul>
+    </div>
+    <div class="arrow-connector">▶</div>
+    <div class="card blue">
+      <div class="icon">📋</div>
+      <h3>3. Contract Wizard</h3>
+      <div class="subtitle">React · Legal Protection</div>
+      <div class="tech">8-Section Digital Contract</div>
+      <ul>
+        <li>7 sections with checkbox + initials</li>
+        <li>RCLA compliance (TX Property Code Ch. 27)</li>
+        <li>Dual signature capture (customer + contractor)</li>
+        <li>PDF generation with floor plans</li>
+        <li>Auto-email to all parties</li>
+      </ul>
+    </div>
+    <div class="arrow-connector">▶</div>
+    <div class="card green">
+      <div class="icon">💳</div>
+      <h3>4. Payment & Automation</h3>
+      <div class="subtitle">n8n Workflows</div>
+      <div class="tech">Cash · Check · ACH · CC</div>
+      <ul>
+        <li>50/25/25 payment schedule</li>
+        <li>Auto-generate internal project file</li>
+        <li>BOM → Purchase Order PDF → distributor</li>
+        <li>Budget vs. actual tracking</li>
+        <li>Material delivery risk management</li>
+      </ul>
+    </div>
+    <div class="arrow-connector">▶</div>
+    <div class="card teal">
+      <div class="icon">📊</div>
+      <h3>5. Project Management</h3>
+      <div class="subtitle">Dashboards + Checklists</div>
+      <div class="tech">Airtable + AI Communications</div>
+      <ul>
+        <li>Auto-built per-project dashboard</li>
+        <li>6-phase construction checklist</li>
+        <li>Video tutorial QC verification</li>
+        <li>Green/red tag gate system</li>
+        <li>Weather-adjusted timelines</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- Backend Systems -->
+  <div class="journey-label">── Backend Systems & Integrations ──</div>
+  <div class="backend-row">
+    <div class="card orange">
+      <div class="icon">📦</div>
+      <h3>Airtable</h3>
+      <div class="subtitle">Central Database</div>
+      <div class="tech">10 Linked Tables</div>
+      <ul>
+        <li>Projects, Clients, Estimates</li>
+        <li>100 BOM configurations</li>
+        <li>Purchase Orders, Budget Tracking</li>
+        <li>Construction Checklists</li>
+        <li>12,600 formula calculations</li>
+      </ul>
+    </div>
+    <div class="card green">
+      <div class="icon">⚡</div>
+      <h3>n8n</h3>
+      <div class="subtitle">Workflow Automation</div>
+      <div class="tech">8 Automated Workflows</div>
+      <ul>
+        <li>Estimate → Airtable + CRM</li>
+        <li>AI rendering generation</li>
+        <li>Contract → 6 parallel tracks</li>
+        <li>PO generation & email</li>
+        <li>Weather monitoring + follow-ups</li>
+      </ul>
+    </div>
+    <div class="card purple">
+      <div class="icon">📈</div>
+      <h3>Pipedrive CRM</h3>
+      <div class="subtitle">Sales Pipeline</div>
+      <div class="tech">8-Stage Pipeline</div>
+      <ul>
+        <li>Lead → Discovery → Estimate</li>
+        <li>Proposal → Negotiation → Contract</li>
+        <li>Signed → Execution</li>
+        <li>Auto follow-up cadence</li>
+        <li>Bi-directional Airtable sync</li>
+      </ul>
+    </div>
+    <div class="card red">
+      <div class="icon">🌦️</div>
+      <h3>Weather & Risk</h3>
+      <div class="subtitle">Monitoring System</div>
+      <div class="tech">OpenWeatherMap API</div>
+      <ul>
+        <li>6-hour polling per project site</li>
+        <li>4-level risk classification</li>
+        <li>Auto timeline adjustment</li>
+        <li>AI-generated notifications</li>
+        <li>Force Majeure documentation</li>
+      </ul>
+    </div>
+    <div class="card purple">
+      <div class="icon">📞</div>
+      <h3>Communications</h3>
+      <div class="subtitle">Multi-Channel</div>
+      <div class="tech">Twilio · Vapi · Gmail</div>
+      <ul>
+        <li>SMS status updates</li>
+        <li>AI phone agent (Vapi)</li>
+        <li>Automated email sequences</li>
+        <li>Milestone notifications</li>
+        <li>Weather delay alerts</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- Key Data Flows -->
+  <div class="data-flows">
+    <h3>Key Data Flows & Integration Points</h3>
+    <div class="flow-grid">
+      <div class="flow-item">
+        <div class="from-to">React App → Airtable</div>
+        <div class="arrow-label">via n8n Webhook</div>
+        <div class="what">Customer selections, estimate data, contract signatures</div>
+      </div>
+      <div class="flow-item">
+        <div class="from-to">Airtable → Pipedrive</div>
+        <div class="arrow-label">via n8n Sync</div>
+        <div class="what">Deal creation, stage updates, activity logging</div>
+      </div>
+      <div class="flow-item">
+        <div class="from-to">n8n → fal.ai</div>
+        <div class="arrow-label">HTTP Request</div>
+        <div class="what">Building prompt → Photorealistic rendering image</div>
+      </div>
+      <div class="flow-item">
+        <div class="from-to">Airtable → n8n → Distributor</div>
+        <div class="arrow-label">PO Workflow</div>
+        <div class="what">BOM data → PDF Purchase Order → Email to supplier</div>
+      </div>
+      <div class="flow-item">
+        <div class="from-to">Weather API → n8n → Customer</div>
+        <div class="arrow-label">Risk Pipeline</div>
+        <div class="what">Forecast → Risk classification → AI communication</div>
+      </div>
+      <div class="flow-item">
+        <div class="from-to">Airtable → React App</div>
+        <div class="arrow-label">API Read</div>
+        <div class="what">Price matrix, BOM data, configuration options</div>
+      </div>
+      <div class="flow-item">
+        <div class="from-to">Contract → PDF → Email</div>
+        <div class="arrow-label">Auto-Generate</div>
+        <div class="what">Signed contract with specs, floor plan, signatures</div>
+      </div>
+      <div class="flow-item">
+        <div class="from-to">Pipedrive → Airtable</div>
+        <div class="arrow-label">via n8n Sync</div>
+        <div class="what">Deal stage changes, lost deal reasons, activities</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Stats -->
+  <div class="stats">
+    <div class="stat">
+      <div class="num">100</div>
+      <div class="label">BOM Configurations</div>
+    </div>
+    <div class="stat">
+      <div class="num">8</div>
+      <div class="label">n8n Workflows</div>
+    </div>
+    <div class="stat">
+      <div class="num">10</div>
+      <div class="label">Airtable Tables</div>
+    </div>
+    <div class="stat">
+      <div class="num">8</div>
+      <div class="label">Pipeline Stages</div>
+    </div>
+    <div class="stat">
+      <div class="num">12,600</div>
+      <div class="label">BOM Formulas</div>
+    </div>
+    <div class="stat">
+      <div class="num">12</div>
+      <div class="label">Week Build Timeline</div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>
