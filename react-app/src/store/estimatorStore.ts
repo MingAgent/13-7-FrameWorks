@@ -198,6 +198,7 @@ function getBuildingTypeLabel(buildingType: string): string {
     case 'carport': return 'Carport';
     case 'i-beam': return 'I-Beam';
     case 'bolt-up': return 'Bolt-Up';
+    case 'carport-garage': return 'Carport/Garage/Apt';
     default: return 'Building';
   }
 }
@@ -216,6 +217,7 @@ export const useEstimatorStore = create<EstimatorStore>()(
       doorPositions: {},
       colors: initialColors,
       concrete: initialConcrete,
+      utilities: { utilitiesExcluded: true, includeUtilityEstimate: false },
       pricing: { ...initialPricing },
       contract: initialContract,
       boltUpQuote: initialBoltUpQuote,
@@ -465,6 +467,12 @@ export const useEstimatorStore = create<EstimatorStore>()(
           concrete: { ...state.concrete, ...config }
         }));
         get().calculatePricing();
+      },
+
+      setUtilityConfig: (config) => {
+        set((state) => ({
+          utilities: { ...state.utilities, ...config }
+        }));
       },
 
       setContractData: (data) => {
@@ -777,6 +785,7 @@ export const useEstimatorStore = create<EstimatorStore>()(
           doorPositions: {},
           colors: { ...initialColors },
           concrete: { ...initialConcrete },
+          utilities: { utilitiesExcluded: true, includeUtilityEstimate: false },
           pricing: { ...initialPricing },
           contract: {
             currentSection: 0,

@@ -146,7 +146,9 @@ export function ReviewAndSignSection({
             <p className="text-gray-900 font-medium capitalize">
               {building.buildingType === 'pole-barn' ? 'Pole Barn' :
                building.buildingType === 'carport' ? 'Carport' :
-               building.buildingType === 'i-beam' ? 'I-Beam Construction' : 'Bolt Up'}
+               building.buildingType === 'i-beam' ? 'I-Beam Construction' :
+               building.buildingType === 'carport-garage' ? 'Carport/Garage/Apt' :
+               building.buildingType === 'bolt-up' ? 'I-Beam/Bolt-Up' : 'Building'}
             </p>
           </div>
         </div>

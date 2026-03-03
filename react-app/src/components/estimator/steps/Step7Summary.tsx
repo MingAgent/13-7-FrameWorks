@@ -16,7 +16,6 @@ import { useEstimatorStore } from '../../../store/estimatorStore';
 import { containerVariants, itemVariants } from '../../../animations/variants';
 import { calculatePurlins } from '../../../utils/calculations/purlins';
 import { SaveQuoteButton } from '../quote/SaveQuoteButton';
-import { DRAW_SCHEDULE } from '../../../constants/pricing';
 import type { BuildingEntry } from '../../../types/estimator';
 
 /* ─── color helpers ─── */
@@ -45,6 +44,7 @@ function getBuildingTypeLabel(buildingType: string): string {
     case 'carport': return 'Carport';
     case 'i-beam': return 'I-Beam Construction';
     case 'bolt-up': return 'Bolt-Up';
+    case 'carport-garage': return 'Carport / Garage / Apartment';
     default: return 'Building';
   }
 }
@@ -183,7 +183,7 @@ function BuildingCard({
             <Row label="Doors" value={totalDoors > 0 ? `${totalDoors} total` : 'None'} />
             <Row label="Windows" value={totalWindows > 0 ? `${totalWindows} total` : 'None'} />
             <Row label="Insulation" value={getInsulationLabel(accessories.insulation)} />
-            <Row label="Foundation" value={getConcreteLabel(concrete.type)} />
+            <Row label="Foundation" value={building.buildingType === 'carport-garage' ? 'Included in CG Base' : getConcreteLabel(concrete.type)} />
           </div>
         </div>
 
@@ -241,6 +241,8 @@ export function Step7Summary() {
   // Calculate combined total
   const combinedTotal = buildings.reduce((sum, b) => sum + b.pricing.grandTotal, 0);
   const displayTotal = hasMultipleBuildings ? combinedTotal : pricing.grandTotal;
+  const combinedDeposit = displayTotal * 0.35;
+
   return (
     <motion.div
       variants={containerVariants}
@@ -302,12 +304,10 @@ export function Step7Summary() {
               <span className="font-bold text-gray-800">Grand Total</span>
               <span className="font-extrabold text-orange-600 text-base">{fmt(combinedTotal)}</span>
             </div>
-            {DRAW_SCHEDULE.map((draw) => (
-              <div key={draw.label} className="flex justify-between text-xs text-gray-400 mt-1">
-                <span>{draw.label} ({Math.round(draw.percent * 100)}%) — {draw.description}</span>
-                <span>{fmt(combinedTotal * draw.percent)}</span>
-              </div>
-            ))}
+            <div className="flex justify-between text-xs text-gray-400 mt-1">
+              <span>Deposit (35%)</span>
+              <span>{fmt(combinedDeposit)}</span>
+            </div>
           </SummaryCard>
         </>
       ) : (
@@ -416,14 +416,36 @@ export function Step7Summary() {
               <Row label="Insulation" value={getInsulationLabel(accessories.insulation)} />
               <Row label="Ventilation" value={accessories.ventilation ? 'Ridge Vents' : 'None'} />
               <Row label="Gutters" value={accessories.gutters ? 'Included' : 'None'} />
-              <Row label="Foundation" value={getConcreteLabel(concrete.type)} />
-              {building.attachedCarport.enabled && !concrete.combinedFoundation && (
+              {building.buildingType === 'carport-garage' ? (
+                <Row label="Foundation" value="Included in CG Base Price" />
+              ) : (
+                <Row label="Foundation" value={getConcreteLabel(concrete.type)} />
+              )}
+              {building.attachedCarport.enabled && !concrete.combinedFoundation && building.buildingType !== 'carport-garage' && (
                 <Row label="Carport Foundation" value={getConcreteLabel(concrete.carportFoundationType)} />
               )}
-              {building.attachedCarport.enabled && concrete.combinedFoundation && (
+              {building.attachedCarport.enabled && concrete.combinedFoundation && building.buildingType !== 'carport-garage' && (
                 <Row label="Foundation" value="Combined (building + carport)" />
               )}
             </SummaryCard>
+
+            {/* CG Zone Breakdown */}
+            {building.buildingType === 'carport-garage' && (
+              <SummaryCard
+                icon={<Building2 className="w-4 h-4 text-blue-500" />}
+                title="CG Zone Layout"
+              >
+                <Row label="Carport Zone" value={`${Math.floor(building.width / 2)}' × ${building.length}' (limestone pad)`} />
+                <Row label="Enclosed Zone" value={`${Math.ceil(building.width / 2)}' × ${building.length}' (concrete slab)`} />
+                <Row label="Garage" value={`${Math.ceil(building.width / 2)}' × ${Math.round(building.length * 0.56)}' (shell only)`} />
+                <Row label="Apartment" value={`${Math.ceil(building.width / 2)}' × ${Math.round(building.length * 0.44)}' (finished)`} />
+                <div className="border-t border-gray-100 pt-1 mt-1">
+                  <p className="text-xs text-amber-600 font-medium">
+                    Septic & water connections quoted separately
+                  </p>
+                </div>
+              </SummaryCard>
+            )}
           </div>
 
           {/* Pricing Breakdown */}
@@ -431,11 +453,30 @@ export function Step7Summary() {
             icon={<DollarSign className="w-4 h-4 text-orange-500" />}
             title="Price Breakdown"
           >
-            <Row label="Base Building Package (includes install)" value={fmt(pricing.basePrice)} />
+            {building.buildingType === 'carport-garage' ? (
+              <>
+                <Row label="CG Base (shell + foundation + apt + fixtures)" value={fmt(pricing.basePrice)} />
+                <div className="pl-4 space-y-0.5 border-l-2 border-gray-100 ml-1 text-xs text-gray-400">
+                  <div className="flex justify-between"><span>Shell + Metal Structure</span><span>incl.</span></div>
+                  <div className="flex justify-between"><span>Foundation (limestone + slab)</span><span>incl.</span></div>
+                  <div className="flex justify-between"><span>Apartment Build-Out</span><span>incl.</span></div>
+                  <div className="flex justify-between"><span>Fixtures (bath, kitchen, electric)</span><span>incl.</span></div>
+                  <div className="flex justify-between"><span>Partition Walls</span><span>incl.</span></div>
+                </div>
+              </>
+            ) : (
+              <Row label="Base Building Package (includes install)" value={fmt(pricing.basePrice)} />
+            )}
             <Row label="Doors, Windows & Accessories" value={fmt(pricing.accessoriesTotal)} />
-            <Row label={building.attachedCarport.enabled && !concrete.combinedFoundation ? 'Building Foundation' : 'Foundation'} value={fmt(pricing.concreteTotal)} />
-            {pricing.carportConcreteTotal > 0 && (
-              <Row label="Carport Foundation" value={fmt(pricing.carportConcreteTotal)} />
+            {building.buildingType === 'carport-garage' ? (
+              <Row label="Foundation (included in CG base)" value="$0" />
+            ) : (
+              <>
+                <Row label={building.attachedCarport.enabled && !concrete.combinedFoundation ? 'Building Foundation' : 'Foundation'} value={fmt(pricing.concreteTotal)} />
+                {pricing.carportConcreteTotal > 0 && (
+                  <Row label="Carport Foundation" value={fmt(pricing.carportConcreteTotal)} />
+                )}
+              </>
             )}
             {pricing.carportTotal > 0 && (
               <Row label={building.attachedCarport.mode === 'interior' ? 'Interior Carport (walls only)' : 'Attached Carport'} value={fmt(pricing.carportTotal)} />
@@ -448,12 +489,10 @@ export function Step7Summary() {
               <span className="font-bold text-gray-800">Grand Total</span>
               <span className="font-extrabold text-orange-600 text-base">{fmt(pricing.grandTotal)}</span>
             </div>
-            {DRAW_SCHEDULE.map((draw) => (
-              <div key={draw.label} className="flex justify-between text-xs text-gray-400 mt-1">
-                <span>{draw.label} ({Math.round(draw.percent * 100)}%) — {draw.description}</span>
-                <span>{fmt(pricing.grandTotal * draw.percent)}</span>
-              </div>
-            ))}
+            <div className="flex justify-between text-xs text-gray-400 mt-1">
+              <span>Deposit (35%)</span>
+              <span>{fmt(pricing.depositAmount)}</span>
+            </div>
           </SummaryCard>
         </>
       )}
@@ -482,6 +521,27 @@ export function Step7Summary() {
       {/* Save Quote Button (only shows if Supabase is configured) */}
       <motion.div variants={itemVariants}>
         <SaveQuoteButton />
+      </motion.div>
+
+      {/* Utility Exclusion Banner (ALL building types) */}
+      <motion.div
+        variants={itemVariants}
+        className="rounded-xl border border-amber-200 bg-amber-50 p-5"
+      >
+        <p className="text-amber-800 font-bold text-sm uppercase tracking-wide mb-1">
+          Utilities Not Included
+        </p>
+        <p className="text-amber-700 text-sm">
+          Electric, water, sewer, and gas connections are NOT included in this estimate.
+          This package includes hookup points at the building only.
+          Utility runs from city mains are quoted separately — contact us for site-specific pricing.
+        </p>
+        {building.buildingType === 'carport-garage' && (
+          <p className="text-amber-600 text-xs mt-2">
+            Apartment buildout includes interior plumbing fixtures and electrical rough-in.
+            Service entrance, hot water heater, HVAC, and septic/water connections are separate.
+          </p>
+        )}
       </motion.div>
 
       {/* Ready CTA */}

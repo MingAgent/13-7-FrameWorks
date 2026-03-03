@@ -21,12 +21,14 @@ export function Step2BuildingSize() {
   };
 
   // Building type display name
-  const typeLabel = {
+  const typeLabelMap: Record<string, string> = {
     'carport': 'Carport',
     'pole-barn': 'Pole Barn',
     'i-beam': 'I-Beam',
-    'bolt-up': 'Bolt Up'
-  }[building.buildingType] || 'Building';
+    'bolt-up': 'Bolt Up',
+    'carport-garage': 'CG'
+  };
+  const typeLabel = typeLabelMap[building.buildingType] || 'Building';
 
   return (
     <motion.div

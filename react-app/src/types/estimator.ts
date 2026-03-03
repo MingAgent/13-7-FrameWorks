@@ -25,7 +25,7 @@ export interface CustomerInfo {
 // Building Configuration Types
 export type LegType = 'standard' | 'certified';
 export type BuildingView = 'front' | 'back' | 'left' | 'right';
-export type BuildingType = 'pole-barn' | 'carport' | 'i-beam' | 'bolt-up';
+export type BuildingType = 'pole-barn' | 'carport' | 'i-beam' | 'bolt-up' | 'carport-garage';
 
 export interface Breezeway {
   frontBack: boolean;
@@ -278,6 +278,12 @@ export interface BuildingEntry {
   leanTo: LeanToConfig;
 }
 
+// Utility Exclusion Config (applies to ALL building types)
+export interface UtilityConfig {
+  utilitiesExcluded: boolean;          // Default: true — utilities NOT included
+  includeUtilityEstimate: boolean;     // Optional: show estimated utility ranges
+}
+
 // Complete Estimator State
 export interface EstimatorState {
   // Navigation
@@ -295,6 +301,7 @@ export interface EstimatorState {
   doorPositions: DoorPositionMap;
   colors: ColorConfig;
   concrete: ConcreteConfig;
+  utilities: UtilityConfig;
   pricing: PricingBreakdown;
   contract: ContractConfig;
   boltUpQuote: BoltUpQuote;
@@ -317,6 +324,7 @@ export interface EstimatorActions {
   setDoorPosition: (doorId: string, view: string, position: number) => void;
   setColors: (colors: Partial<ColorConfig>) => void;
   setConcreteConfig: (config: Partial<ConcreteConfig>) => void;
+  setUtilityConfig: (config: Partial<UtilityConfig>) => void;
   setContractData: (data: Partial<ContractConfig>) => void;
 
   // Contract Section Actions

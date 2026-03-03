@@ -137,6 +137,39 @@ export function TermsAndConditionsSection({
               ))}
             </div>
           </div>
+
+          {/* Utility Exclusion Notice (ALL building types) */}
+          <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+            <h4 className="text-sm font-bold text-amber-800 uppercase tracking-wide mb-2">Utility Exclusion Notice</h4>
+            <p className="text-sm text-amber-700">
+              Utility connections (electric, water, sewer, gas) are NOT included in this contract.
+              This package includes hookup points and stub-outs at the building only.
+              All utility runs from city mains/meters to the building are quoted separately
+              based on site-specific conditions and local utility provider requirements.
+            </p>
+          </div>
+
+          {/* CG-Specific Scope (only for Carport/Garage/Apartment) */}
+          {building.buildingType === 'carport-garage' && (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <h4 className="text-sm font-bold text-blue-800 uppercase tracking-wide mb-2">CG Building Scope</h4>
+              <p className="text-sm text-blue-700 mb-2">
+                This contract covers the complete Carport/Garage/Apartment package including:
+              </p>
+              <ul className="text-sm text-blue-700 space-y-1 ml-4 list-disc">
+                <li>Metal building shell (carport + enclosed structure)</li>
+                <li>Foundation (limestone pad for carport zone, concrete slab for enclosed zone)</li>
+                <li>Apartment build-out (walls, flooring, ceiling, doors)</li>
+                <li>Bathroom package (toilet, vanity, shower)</li>
+                <li>Kitchen stub area and electrical rough-in per code</li>
+                <li>Partition walls (apt/garage and bath/bed)</li>
+              </ul>
+              <p className="text-sm text-blue-600 mt-2 font-medium">
+                NOT included: Service entrance, hot water heater, HVAC, septic/sewer connection,
+                water well/connection. These items are quoted separately based on site requirements.
+              </p>
+            </div>
+          )}
         </div>
       </ContractSection>
     </motion.div>

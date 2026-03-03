@@ -18,8 +18,16 @@ const FOUNDATION_OPTION_META: { type: ConcreteType; label: string; description: 
   { type: 'none',      label: 'No Foundation',          description: "I'll handle separately" },
   { type: 'slab',      label: '4" Concrete Slab',       description: '#3 rebar, vapor barrier, control joints' },
   { type: 'turnkey',   label: '4" Turnkey Slab',        description: 'Forms, perimeter thickening, turnkey' },
-  { type: 'limestone', label: 'Crushed Limestone Pad',  description: 'Compacted limestone base — $1,200/ton' },
+  { type: 'limestone', label: 'Crushed Limestone Pad',  description: 'Compacted crushed limestone, 4" depth installed' },
   { type: 'caliche',   label: 'Caliche Base',           description: 'Caliche base material — $28/CY + labor' },
+];
+
+// Utility cost estimate ranges (Houston metro, informational only)
+const UTILITY_ESTIMATE_RANGES = [
+  { label: 'Electric service (200A)', low: 3000, high: 8000 },
+  { label: 'Water tap + line',        low: 2000, high: 5000 },
+  { label: 'Sewer connection',        low: 3000, high: 10000 },
+  { label: 'Gas line (if applicable)', low: 1500, high: 4000 },
 ];
 
 export function Step6AddOns() {
@@ -27,8 +35,10 @@ export function Step6AddOns() {
     building,
     accessories,
     concrete,
+    utilities,
     setAccessories,
-    setConcreteConfig
+    setConcreteConfig,
+    setUtilityConfig
   } = useEstimatorStore();
 
   // Window cost (windows are managed in Doors & Windows step, but costs still roll up here)
@@ -176,51 +186,112 @@ export function Step6AddOns() {
       </motion.div>
 
       {/* Foundation / Concrete / Limestone */}
-      <motion.div variants={itemVariants} className="bg-white rounded-lg p-6 border border-gray-200">
-        <h3 className="text-lg font-semibold text-gray-800 mb-2">Foundation</h3>
-        <p className="text-sm text-gray-500 mb-4">
-          Building footprint: {sqft.toLocaleString()} sq ft ({building.width}' × {building.length}')
-        </p>
+      {building.buildingType === 'carport-garage' ? (
+        <motion.div variants={itemVariants} className="bg-white rounded-lg p-6 border border-gray-200">
+          <h3 className="text-lg font-semibold text-gray-800 mb-2">Foundation</h3>
+          <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4 mb-4">
+            <p className="text-emerald-800 font-medium text-sm">Foundation Included in CG Base Price</p>
+            <p className="text-emerald-600 text-xs mt-1">
+              Limestone pad for carport zone, concrete slab for enclosed zone (garage + apartment)
+            </p>
+          </div>
+          <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+            <p className="text-amber-800 font-medium text-sm">Septic & Water Connections</p>
+            <p className="text-amber-600 text-xs mt-1">
+              Septic hookup and water connections are quoted separately. Contact us for site-specific pricing.
+            </p>
+          </div>
+        </motion.div>
+      ) : (
+        <motion.div variants={itemVariants} className="bg-white rounded-lg p-6 border border-gray-200">
+          <h3 className="text-lg font-semibold text-gray-800 mb-2">Foundation</h3>
+          <p className="text-sm text-gray-500 mb-4">
+            Building footprint: {sqft.toLocaleString()} sq ft ({building.width}' × {building.length}')
+          </p>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {FOUNDATION_OPTION_META.map((option) => {
-            const isSelected = concrete.type === option.type;
-            const rate = getConcreteRate(option.type, building.buildingType);
-            const optionCost = option.type === 'none' ? 0 : sqft * rate;
-            const rateDisplay = option.type === 'none' ? '$0' : `$${rate % 1 === 0 ? rate : rate.toFixed(2)}/sq ft`;
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {FOUNDATION_OPTION_META.map((option) => {
+              const isSelected = concrete.type === option.type;
+              const rate = getConcreteRate(option.type, building.buildingType);
+              const optionCost = option.type === 'none' ? 0 : sqft * rate;
+              const rateDisplay = option.type === 'none' ? '$0' : `$${rate % 1 === 0 ? rate : rate.toFixed(2)}/sq ft`;
 
-            return (
-              <button
-                key={option.type}
-                onClick={() => setConcreteConfig({ type: option.type })}
-                className={`p-4 rounded-lg border-2 transition-all text-left ${
-                  isSelected
-                    ? 'border-cyan-400 bg-emerald-500 text-white'
-                    : 'border-gray-200 bg-white text-gray-800 hover:border-gray-300'
-                }`}
-              >
-                <p className="font-medium text-sm">{option.label}</p>
-                <p className={`text-xs mt-1 ${isSelected ? 'text-white/80' : 'text-gray-500'}`}>
-                  {option.description}
-                </p>
-                {option.type !== 'none' ? (
-                  <>
-                    <p className={`text-xs mt-1 ${isSelected ? 'text-white/70' : 'text-gray-400'}`}>
+              return (
+                <button
+                  key={option.type}
+                  onClick={() => setConcreteConfig({ type: option.type })}
+                  className={`p-4 rounded-lg border-2 transition-all text-left ${
+                    isSelected
+                      ? 'border-cyan-400 bg-emerald-500 text-white'
+                      : 'border-gray-200 bg-white text-gray-800 hover:border-gray-300'
+                  }`}
+                >
+                  <p className="font-medium text-sm">{option.label}</p>
+                  <p className={`text-xs mt-1 ${isSelected ? 'text-white/80' : 'text-gray-500'}`}>
+                    {option.description}
+                  </p>
+                  {option.type !== 'none' ? (
+                    <>
+                      <p className={`text-xs mt-1 ${isSelected ? 'text-white/70' : 'text-gray-400'}`}>
+                        {rateDisplay}
+                      </p>
+                      <p className={`text-sm font-semibold mt-1 ${isSelected ? 'text-white' : 'text-emerald-600'}`}>
+                        +${optionCost.toLocaleString()}
+                      </p>
+                    </>
+                  ) : (
+                    <p className={`text-sm mt-2 ${isSelected ? 'text-white/80' : 'text-gray-400'}`}>
                       {rateDisplay}
                     </p>
-                    <p className={`text-sm font-semibold mt-1 ${isSelected ? 'text-white' : 'text-emerald-600'}`}>
-                      +${optionCost.toLocaleString()}
-                    </p>
-                  </>
-                ) : (
-                  <p className={`text-sm mt-2 ${isSelected ? 'text-white/80' : 'text-gray-400'}`}>
-                    {rateDisplay}
-                  </p>
-                )}
-              </button>
-            );
-          })}
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </motion.div>
+      )}
+
+      {/* Utility Exclusion Notice (ALL building types) */}
+      <motion.div variants={itemVariants} className="bg-white rounded-lg p-6 border border-gray-200">
+        <h3 className="text-lg font-semibold text-gray-800 mb-2">Utilities</h3>
+        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-4">
+          <p className="text-amber-800 font-medium text-sm">
+            Utilities NOT Included
+          </p>
+          <p className="text-amber-600 text-xs mt-1">
+            Electric, water, sewer, and gas connections are NOT included in this estimate.
+            This package includes hookup points at the building only.
+            Utility runs from city mains are quoted separately.
+          </p>
         </div>
+
+        <label className="flex items-center justify-between p-4 bg-gray-50 rounded-lg cursor-pointer">
+          <div>
+            <p className="font-medium text-gray-800">Include utility installation estimate</p>
+            <p className="text-sm text-gray-500">Show estimated ranges for reference (not included in total)</p>
+          </div>
+          <input
+            type="checkbox"
+            checked={utilities.includeUtilityEstimate}
+            onChange={(e) => setUtilityConfig({ includeUtilityEstimate: e.target.checked })}
+            className="w-5 h-5 rounded border-gray-300 text-emerald-500 focus:ring-emerald-500"
+          />
+        </label>
+
+        {utilities.includeUtilityEstimate && (
+          <div className="mt-4 space-y-2">
+            <p className="text-xs text-gray-400 font-medium uppercase">Estimated Ranges (Houston Metro)</p>
+            {UTILITY_ESTIMATE_RANGES.map((item) => (
+              <div key={item.label} className="flex justify-between text-sm px-2">
+                <span className="text-gray-600">{item.label}</span>
+                <span className="text-gray-500">${item.low.toLocaleString()} – ${item.high.toLocaleString()}</span>
+              </div>
+            ))}
+            <p className="text-xs text-amber-500 mt-2 px-2">
+              These are estimates only. Actual costs vary by site conditions, distance to city mains, and local provider requirements.
+            </p>
+          </div>
+        )}
       </motion.div>
 
       {/* Running Total */}
