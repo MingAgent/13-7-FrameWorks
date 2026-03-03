@@ -1,76 +1,55 @@
 import { motion } from 'framer-motion';
-import { Building2, Car, Wrench, Columns } from 'lucide-react';
 import { useEstimatorStore } from '../../../store/estimatorStore';
 import { containerVariants, itemVariants } from '../../../animations/variants';
-import BoltUpQuoteForm from './BoltUpQuoteForm';
-
-type BuildingType = 'pole-barn' | 'carport' | 'i-beam' | 'bolt-up';
+import { getBuildingSizes } from '../../../constants/pricing';
+import type { BuildingType } from '../../../types/estimator';
 
 interface BuildingTypeOption {
-  id: BuildingType;
-  name: string;
+  type: BuildingType;
+  label: string;
   description: string;
-  icon: React.ReactNode;
-  features: string[];
-  note?: string;
+  icon: string;
+  comingSoon?: boolean;
 }
 
-const buildingTypes: BuildingTypeOption[] = [
+const BUILDING_TYPE_OPTIONS: BuildingTypeOption[] = [
   {
-    id: 'carport',
-    name: 'Carport',
-    description: 'Open-sided structure perfect for vehicle protection',
-    icon: <Car className="w-8 h-8" />,
-    features: [
-      'Vehicle protection from elements',
-      'Easy access design',
-      'Economical option',
-      'Various size options'
-    ]
+    type: 'pole-barn',
+    label: 'Pole Barn',
+    description: 'Post-frame structure ideal for workshops, barns, and storage buildings',
+    icon: '🏗️',
   },
   {
-    id: 'pole-barn',
-    name: 'Pole Barn',
-    description: 'Traditional post-frame construction with versatile design options',
-    icon: <Building2 className="w-8 h-8" />,
-    features: [
-      'Cost-effective construction',
-      'Large open floor plans',
-      'Quick installation',
-      'Ideal for agricultural & storage'
-    ]
+    type: 'carport',
+    label: 'Carport',
+    description: 'Open-sided covered structure for vehicles and equipment',
+    icon: '🚗',
   },
   {
-    id: 'i-beam',
-    name: 'I-Beam Construction',
-    description: 'Heavy-duty steel I-beam frame for maximum strength and span',
-    icon: <Columns className="w-8 h-8" />,
-    features: [
-      'Superior load-bearing capacity',
-      'Wider clear spans available',
-      'Commercial & industrial grade',
-      '26-gauge steel panels'
-    ]
+    type: 'i-beam',
+    label: 'I-Beam / Bolt-Up',
+    description: 'Heavy-duty steel I-beam frames for commercial and industrial use',
+    icon: '🏭',
   },
   {
-    id: 'bolt-up',
-    name: 'Bolt Up',
-    description: 'Custom engineered steel building with premium features',
-    icon: <Wrench className="w-8 h-8" />,
-    features: [
-      'Fully customizable design',
-      'Commercial-grade construction',
-      'Engineering included',
-      'Premium finishes available'
-    ],
-    note: 'Customized Quote Required'
-  }
+    type: 'carport-garage',
+    label: 'Carport / Garage / Apartment',
+    description: 'Combo building with open carport, enclosed garage, and finished apartment',
+    icon: '🏠',
+  },
+  {
+    type: 'bolt-up',
+    label: 'Bolt-Up',
+    description: 'Pre-engineered bolt-together metal building kits',
+    icon: '🔩',
+    comingSoon: true,
+  },
 ];
 
 export function Step2BuildingType() {
   const { building, setBuildingConfig } = useEstimatorStore();
 
-  const handleSelect = (type: BuildingType) => {
+  const handleSelectType = (type: BuildingType) => {
     setBuildingConfig({ buildingType: type });
   };
 
@@ -81,106 +60,80 @@ export function Step2BuildingType() {
       animate="animate"
       className="space-y-6"
     >
-      <motion.p variants={itemVariants} className="text-[#A3A3A3]">
-        Select the type of building you're interested in.
+      <motion.p variants={itemVariants} className="text-gray-600">
+        Choose the type of metal building for your project.
       </motion.p>
 
-      <motion.div variants={itemVariants} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {buildingTypes.map((type) => {
-          const isSelected = building.buildingType === type.id;
+      <motion.div variants={itemVariants}>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {BUILDING_TYPE_OPTIONS.map((option) => {
+            const isSelected = building.buildingType === option.type;
+            const sizes = getBuildingSizes(option.type);
+            const lowestPrice = sizes[0]?.startingPrice ?? 0;
 
-          return (
-            <button
-              key={type.id}
-              onClick={() => handleSelect(type.id)}
-              className={`
-                relative p-6 rounded-xl border-2 transition-all duration-300 text-left
-                ${isSelected
-                  ? 'border-[#14B8A6] bg-[#14B8A6]/10 shadow-lg shadow-[#14B8A6]/20'
-                  : 'border-white/10 bg-[#1e2a45] hover:border-white/30 hover:bg-[#243352]'
-                }
-              `}
-            >
-              {/* Selection indicator */}
-              {isSelected && (
-                <div className="absolute top-3 right-3 w-6 h-6 bg-[#14B8A6] rounded-full flex items-center justify-center">
-                  <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                  </svg>
-                </div>
-              )}
+            return (
+              <button
+                key={option.type}
+                onClick={() => !option.comingSoon && handleSelectType(option.type)}
+                disabled={option.comingSoon}
+                className={`relative p-6 rounded-xl border-2 transition-all text-left ${
+                  option.comingSoon
+                    ? 'border-gray-200 bg-gray-50 opacity-60 cursor-not-allowed'
+                    : isSelected
+                    ? 'border-orange-500 bg-orange-50 shadow-lg shadow-orange-500/10'
+                    : 'border-gray-200 bg-white hover:border-orange-300 hover:shadow-md cursor-pointer'
+                }`}
+              >
+                {option.comingSoon && (
+                  <span className="absolute top-3 right-3 bg-gray-400 text-white text-xs font-bold px-2 py-0.5 rounded-full">
+                    COMING SOON
+                  </span>
+                )}
 
-              {/* Icon */}
-              <div className={`
-                w-14 h-14 rounded-xl flex items-center justify-center mb-4
-                ${isSelected ? 'bg-[#14B8A6] text-white' : 'bg-[#243352] text-[#14B8A6]'}
-              `}>
-                {type.icon}
-              </div>
+                {isSelected && !option.comingSoon && (
+                  <span className="absolute top-3 right-3 bg-orange-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">
+                    SELECTED
+                  </span>
+                )}
 
-              {/* Name & Description */}
-              <h3 className={`text-lg font-bold mb-2 ${isSelected ? 'text-[#14B8A6]' : 'text-white'}`}>
-                {type.name}
-              </h3>
-              <p className="text-sm text-[#A3A3A3] mb-4">
-                {type.description}
-              </p>
-
-              {/* Features */}
-              <ul className="space-y-2">
-                {type.features.map((feature, index) => (
-                  <li key={index} className="flex items-start gap-2 text-sm text-[#A3A3A3]">
-                    <span className={`mt-1 ${isSelected ? 'text-[#14B8A6]' : 'text-[#666666]'}`}>•</span>
-                    <span>{feature}</span>
-                  </li>
-                ))}
-              </ul>
-
-              {/* Special note for Bolt Up */}
-              {type.note && (
-                <div className={`
-                  mt-4 px-3 py-2 rounded-lg text-xs font-medium
-                  ${isSelected ? 'bg-orange-500/20 text-orange-400' : 'bg-orange-500/10 text-orange-400/80'}
-                `}>
-                  {type.note}
-                </div>
-              )}
-            </button>
-          );
-        })}
+                <div className="text-3xl mb-3">{option.icon}</div>
+                <h3 className={`text-lg font-bold mb-1 ${
+                  isSelected ? 'text-orange-700' : 'text-gray-800'
+                }`}>
+                  {option.label}
+                </h3>
+                <p className={`text-sm mb-3 ${
+                  isSelected ? 'text-orange-600' : 'text-gray-500'
+                }`}>
+                  {option.description}
+                </p>
+                <p className={`text-xs font-medium ${
+                  isSelected ? 'text-orange-500' : 'text-gray-400'
+                }`}>
+                  Starting at ${lowestPrice.toLocaleString()}
+                </p>
+              </button>
+            );
+          })}
+        </div>
       </motion.div>
 
-      {/* Info panel for selected type */}
-      {building.buildingType && building.buildingType !== 'bolt-up' && (
+      {/* CG Info Banner */}
+      {building.buildingType === 'carport-garage' && (
         <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="bg-[#1e2a45] rounded-xl p-4 border border-white/10"
+          variants={itemVariants}
+          className="bg-blue-50 border border-blue-200 rounded-lg p-4"
         >
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-[#14B8A6]/20 flex items-center justify-center text-[#14B8A6]">
-              {buildingTypes.find(t => t.id === building.buildingType)?.icon}
-            </div>
-            <div>
-              <p className="text-white font-medium">
-                {buildingTypes.find(t => t.id === building.buildingType)?.name} Selected
-              </p>
-              <p className="text-sm text-[#A3A3A3]">
-                Continue to configure your building specifications.
-              </p>
-            </div>
-          </div>
-        </motion.div>
-      )}
-
-      {/* Bolt-Up Quote Form */}
-      {building.buildingType === 'bolt-up' && (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-        >
-          <BoltUpQuoteForm />
+          <p className="text-blue-800 font-medium text-sm mb-1">CG Building Includes:</p>
+          <ul className="text-blue-600 text-xs space-y-1 ml-4 list-disc">
+            <li>Open carport zone (half of building width) with limestone pad</li>
+            <li>Enclosed garage zone with concrete slab</li>
+            <li>Finished apartment with bathroom (sink, toilet, shower, closet)</li>
+            <li>Foundation included in base price</li>
+          </ul>
+          <p className="text-amber-600 text-xs mt-2 font-medium">
+            Note: Septic hookup and water connections are quoted separately.
+          </p>
         </motion.div>
       )}
     </motion.div>
